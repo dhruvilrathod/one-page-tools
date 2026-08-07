@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomination Document Builder</title>
+<script src="https://unpkg.com/docx@9.0.2/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --line:#d8dbe0; --ink:#1b1d21; --muted:#6b7280;
+    --accent:#1f5fa9; --danger:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .spacer{flex:1}
+  header select{width:auto;padding:6px 8px}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+  button:hover{background:#f0f2f5}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button.mini{padding:3px 9px;font-size:12px}
+  button.del{color:var(--danger);border-color:#e6c9c9}
+  .wrap{display:grid;grid-template-columns:minmax(420px,1fr) minmax(460px,1fr);gap:18px;padding:18px;align-items:start}
+  @media (max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}
+  legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--accent)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  textarea{resize:vertical;min-height:48px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .card{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:10px;margin-bottom:10px;background:#fbfcfd}
+  .card .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .sub{background:#fff;border-left-color:#b9c4d1;margin-top:10px}
+  .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .hide{display:none!important}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .status{font-size:12px;color:var(--muted)}
+  /* document look — shared by preview, .doc export and print */
+  #previewWrap{position:sticky;top:64px}
+  #preview{border:1px solid var(--line);border-radius:6px;padding:60px 64px;max-height:78vh;overflow:auto}
+  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.3;color:#000}
+  .doc h2{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          text-decoration:underline;margin:0 0 16px;font-family:inherit}
+  .doc p{margin:0 0 9px;text-align:justify}
+  .doc p.plain{text-align:left}
+  .doc .sigblock{margin:20px 0 12px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
+  .doc .signame{font-weight:700}
+  .doc .sigrole{font-style:italic}
+  .doc .execution{letter-spacing:.4px;font-weight:700;margin-top:14px}
+  @media print{
+    @page{size:A4;margin:20mm}
+    header,.wrap>.panel:first-child{display:none}
+    .wrap{display:block;padding:0}
+    #previewWrap{position:static}
+    #preview{border:none;border-radius:0;max-height:none;overflow:visible;padding:0}
+    .panel{border:none;padding:0}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nomination Document Builder</h1>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <button onclick="saveFile()">Save draft…</button>
+  <button onclick="openFile()">Open draft…</button>
+  <input type="file" id="fileInput" accept=".json" class="hide" onchange="handleFilePick(this)">
+  <select id="samplePick" onchange="loadSample(this.value); this.selectedIndex=0" title="Fill the form with example data">
+    <option value="">Load sample…</option>
+    <option value="trust">Individuals → company ATF trust</option>
+    <option value="simple">Individuals → individuals</option>
+    <option value="mixed">Mixed entities (individual + company + trust)</option>
+    <option value="portion">Company → company, portion of the land</option>
+  </select>
+  <button onclick="resetAll()">Clear</button>
+  <button class="primary" onclick="downloadDocx()">Download .docx</button>
+  <button class="primary" onclick="downloadPdf()">Download .pdf</button>
+</header>
+
+<div class="wrap">
+  <!-- ============================== FORM ============================== -->
+  <div class="panel">
+    <fieldset>
+      <legend>Vendors</legend>
+      <div id="vendors"></div>
+      <div class="addbar" id="vendorsAdd"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Contract</legend>
+      <div class="row">
+        <div>
+          <label>Contract type</label>
+          <select id="contractType" onchange="render()">
+            <option>Residential</option>
+            <option>Commercial</option>
+            <option>Rural</option>
+            <option>Industrial</option>
+            <option>Vacant Land</option>
+            <option value="__other">Other (type below)</option>
+          </select>
+          <input id="contractTypeOther" class="hide" placeholder="Contract type" oninput="render()">
+        </div>
+        <div>
+          <label>Contract date</label>
+          <input type="date" id="contractDate" oninput="render()" onchange="render()">
+          <div class="hint" id="contractDateEcho"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Current purchasers (nominators)</legend>
+      <div id="purchasers"></div>
+      <div class="addbar" id="purchasersAdd"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Property</legend>
+      <div id="properties"></div>
+      <div class="addbar"><button class="mini" onclick="addProperty()">+ Add property / title</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>New nominating entity (nominees)</legend>
+      <div id="nominees"></div>
+      <div class="addbar" id="nomineesAdd"></div>
+      <div class="hint">Add as many parties as you need — they can be of different types (e.g. an individual alongside a company).</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Document options</legend>
+      <label>Document title</label>
+      <input id="docTitle" value="DIRECTION TO TRANSFER LAND TO NOMINEE" oninput="render()">
+      <label>Space above each signing line</label>
+      <select id="sigSpace" onchange="render()">
+        <option value="compact">Compact — fits the most on a page</option>
+        <option value="standard" selected>Standard</option>
+        <option value="generous">Generous — room for DocuSign fields</option>
+        <option value="wide">Wide — full signature box</option>
+      </select>
+      <div class="hint">Signature blocks are generated from the purchasers (direction) and the nominees (acceptance).</div>
+    </fieldset>
+  </div>
+
+  <!-- ============================ PREVIEW ============================= -->
+  <div id="previewWrap">
+    <div class="panel">
+      <div class="status" style="margin-bottom:8px">Live preview</div>
+      <div id="preview" class="doc"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  State — vendors, purchasers and nominees are all lists of "parties"
+ *  sharing one shape, so any list can mix entity types freely.
+ * ------------------------------------------------------------------ */
+const S = {vendors: [], purchasers: [], nominees: [], properties: []};
+
+const KINDS = {
+  individual:       'Individual',
+  company:          'Company',
+  trust_corporate:  'Trust — corporate trustee',
+  trust_individual: 'Trust — individual trustee(s)'
+};
+const ROLES = ['Director', 'Secretary', 'Director/Secretary', 'Sole Director'];
+const PH = {
+  name:'Given names and surname', addr:'Street address, Suburb STATE 0000',
+  company:'Company name Pty Ltd', trust:'Trust name',
+  acn:'000 000 000', abn:'00 000 000 000', volume:'0000', folio:'00'
+};
+
+const uid  = () => Math.random().toString(36).slice(2, 9);
+const val  = id => (document.getElementById(id)?.value || '').trim();
+const esc  = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const find = (listName, id) => S[listName].find(x => x.id === id);
+
+function newParty(kind) {
+  return {id:uid(), kind, name:'', address:'', acn:'', abn:'', trustName:'',
+          officers: (kind === 'company' || kind === 'trust_corporate') ? [newOfficer()] : [],
+          trustees: kind === 'trust_individual' ? [newTrustee()] : []};
+}
+const newOfficer = () => ({id:uid(), name:'', role:'Director', address:''});
+const newTrustee = () => ({id:uid(), name:'', address:''});
+
+/* ---- mutations ---- */
+function addParty(listName, kind)      { S[listName].push(newParty(kind)); renderAll(); }
+function removeParty(listName, id)     { S[listName] = S[listName].filter(x => x.id !== id); renderAll(); }
+function setParty(listName, id, f, v)  { const p = find(listName, id); if (p) { p[f] = v; render(); } }
+function addSub(listName, pid, key)    { find(listName, pid)[key].push(key === 'officers' ? newOfficer() : newTrustee()); renderAll(); }
+function removeSub(listName, pid, key, sid) {
+  const p = find(listName, pid);
+  p[key] = p[key].filter(x => x.id !== sid);
+  renderAll();
+}
+function setSub(listName, pid, key, sid, f, v) {
+  const s = find(listName, pid)[key].find(x => x.id === sid);
+  if (s) { s[f] = v; render(); }
+}
+function addProperty()                 { S.properties.push({id:uid(), address:'', volume:'', folio:'', extent:'whole', portion:''}); renderAll(); }
+function removeProperty(id)            { S.properties = S.properties.filter(x => x.id !== id); renderAll(); }
+function setProperty(id, f, v)         { const p = find('properties', id); if (p) { p[f] = v; f === 'extent' ? renderAll() : render(); } }
+
+/* ------------------------------------------------------------------ *
+ *  Form rendering
+ * ------------------------------------------------------------------ */
+function addBar(listName) {
+  return Object.entries(KINDS)
+    .map(([k, lbl]) => `<button class="mini" onclick="addParty('${listName}','${k}')">+ ${lbl}</button>`)
+    .join('');
+}
+
+function officerRows(listName, p) {
+  return p.officers.map((o, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Officer ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','officers','${o.id}')">Remove</button></div>
+      <div class="row">
+        <div><label>Name</label>
+          <input value="${esc(o.name)}" placeholder="${PH.name}"
+                 oninput="setSub('${listName}','${p.id}','officers','${o.id}','name',this.value)"></div>
+        <div><label>Position</label>
+          <select onchange="setSub('${listName}','${p.id}','officers','${o.id}','role',this.value)">
+            ${ROLES.map(r => `<option ${o.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+          </select></div>
+      </div>
+      <label>Address</label>
+      <textarea placeholder="${PH.addr}"
+        oninput="setSub('${listName}','${p.id}','officers','${o.id}','address',this.value)">${esc(o.address)}</textarea>
+    </div>`).join('');
+}
+
+function trusteeRows(listName, p) {
+  return p.trustees.map((t, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Trustee ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','trustees','${t.id}')">Remove</button></div>
+      <label>Name</label>
+      <input value="${esc(t.name)}" placeholder="${PH.name}"
+             oninput="setSub('${listName}','${p.id}','trustees','${t.id}','name',this.value)">
+      <label>Address</label>
+      <textarea placeholder="${PH.addr}"
+        oninput="setSub('${listName}','${p.id}','trustees','${t.id}','address',this.value)">${esc(t.address)}</textarea>
+    </div>`).join('');
+}
+
+function partyCard(listName, p, i) {
+  const head = `<div class="card-head">
+      <span>${i + 1}. ${KINDS[p.kind]}</span>
+      <button class="mini del" onclick="removeParty('${listName}','${p.id}')">Remove</button>
+    </div>`;
+  const set = f => `setParty('${listName}','${p.id}','${f}',this.value)`;
+
+  if (p.kind === 'individual') {
+    return `<div class="card">${head}
+      <label>Full name</label>
+      <input value="${esc(p.name)}" placeholder="${PH.name}" oninput="${set('name')}">
+      <label>Address</label>
+      <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+    </div>`;
+  }
+
+  const companyBlock = label => `
+    <label>${label}</label>
+    <input value="${esc(p.name)}" placeholder="${PH.company}" oninput="${set('name')}">
+    <div class="row">
+      <div><label>ACN</label><input value="${esc(p.acn)}" placeholder="${PH.acn}" oninput="${set('acn')}"></div>
+      <div><label>ABN</label><input value="${esc(p.abn)}" placeholder="${PH.abn}" oninput="${set('abn')}"></div>
+    </div>
+    <label>Address</label>
+    <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+    <label>Directors / secretaries (signing)</label>
+    ${officerRows(listName, p)}
+    <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','officers')">+ Add officer</button></div>`;
+
+  if (p.kind === 'company')  return `<div class="card">${head}${companyBlock('Company name')}</div>`;
+
+  if (p.kind === 'trust_corporate') return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      ${companyBlock('Corporate trustee name')}
+    </div>`;
+
+  return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      <label>Trustees</label>
+      ${trusteeRows(listName, p)}
+      <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','trustees')">+ Add trustee</button></div>
+      <label>Trust address (optional — defaults to the trustees' address)</label>
+      <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+    </div>`;
+}
+
+function renderForm() {
+  ['vendors', 'purchasers', 'nominees'].forEach(listName => {
+    document.getElementById(listName).innerHTML =
+      S[listName].map((p, i) => partyCard(listName, p, i)).join('');
+    document.getElementById(listName + 'Add').innerHTML = addBar(listName);
+  });
+
+  document.getElementById('properties').innerHTML = S.properties.map((pr, i) => `
+    <div class="card">
+      <div class="card-head"><span>Property ${i + 1}</span>
+        <button class="mini del" onclick="removeProperty('${pr.id}')">Remove</button></div>
+      <label>Property address</label>
+      <textarea placeholder="${PH.addr}" oninput="setProperty('${pr.id}','address',this.value)">${esc(pr.address)}</textarea>
+      <div class="row">
+        <div><label>CT Volume</label><input value="${esc(pr.volume)}" placeholder="${PH.volume}" oninput="setProperty('${pr.id}','volume',this.value)"></div>
+        <div><label>CT Folio</label><input value="${esc(pr.folio)}" placeholder="${PH.folio}" oninput="setProperty('${pr.id}','folio',this.value)"></div>
+      </div>
+      <label>Extent</label>
+      <select onchange="setProperty('${pr.id}','extent',this.value)">
+        <option value="whole" ${pr.extent === 'whole' ? 'selected' : ''}>Whole of the land</option>
+        <option value="portion" ${pr.extent === 'portion' ? 'selected' : ''}>Portion of the land</option>
+      </select>
+      <div class="${pr.extent === 'portion' ? '' : 'hide'}">
+        <label>Portion description</label>
+        <input value="${esc(pr.portion)}" placeholder="Allotment 0 in Deposited Plan 00000"
+               oninput="setProperty('${pr.id}','portion',this.value)">
+      </div>
+    </div>`).join('');
+}
+
+function toggleSections() {
+  document.getElementById('contractTypeOther').classList.toggle('hide', val('contractType') !== '__other');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Language helpers
+ * ------------------------------------------------------------------ */
+const BLANK = '_'.repeat(20);
+
+/* Vertical room above each signing rule, so e-signature platforms have
+   somewhere to anchor a signature field. px = preview, twips = DOCX, mm = PDF. */
+const SIG_SPACE = {
+  compact:  {px: 20, twips: 300,  mm: 7},
+  standard: {px: 42, twips: 640,  mm: 13},
+  generous: {px: 68, twips: 1040, mm: 21},
+  wide:     {px: 96, twips: 1480, mm: 30}
+};
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
+const clean = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
+const filled = list => list.filter(x => x.name || x.address);
+
+function joinList(arr) {
+  const a = arr.filter(Boolean);
+  if (!a.length) return '';
+  if (a.length === 1) return a[0];
+  return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+}
+
+/** "A and B of 5 X St" — people sharing an address are named together. */
+function peoplePhrase(people) {
+  const groups = [];
+  filled(people).forEach(p => {
+    const addr = clean(p.address);
+    const last = groups[groups.length - 1];
+    if (last && last.addr === addr) last.names.push(p.name);
+    else groups.push({addr, names: [p.name]});
+  });
+  return joinList(groups.map(g => joinList(g.names) + (g.addr ? ' of ' + g.addr : '')));
+}
+
+function companyName(p) {
+  let s = p.name || '';
+  const ids = [];
+  if (p.acn) ids.push('ACN: ' + p.acn);
+  if (p.abn) ids.push('ABN: ' + p.abn);
+  if (ids.length) s += ' (' + ids.join(', ') + ')';
+  return s;
+}
+
+/** The entity as it is named in the body of the document, address included. */
+function partyDescription(p) {
+  const at = a => (clean(a) ? ' of ' + clean(a) : '');
+  if (p.kind === 'individual')      return p.name ? p.name + at(p.address) : '';
+  if (p.kind === 'company')         return companyName(p) + at(p.address);
+  if (p.kind === 'trust_corporate') return companyName(p) + ' ATF ' + (p.trustName || BLANK) + at(p.address);
+  const names = joinList(filled(p.trustees).map(t => t.name));
+  return (names || BLANK) + ' ATF ' + (p.trustName || BLANK) +
+         at(p.address || filled(p.trustees)[0]?.address || '');
+}
+
+/** A whole list of parties, collapsing consecutive individuals on one address. */
+function partiesPhrase(list) {
+  const chunks = [];
+  let run = [];
+  const flush = () => { if (run.length) { chunks.push(peoplePhrase(run)); run = []; } };
+  list.forEach(p => {
+    if (p.kind === 'individual') { if (p.name || p.address) run.push(p); }
+    else { flush(); const s = partyDescription(p); if (s) chunks.push(s); }
+  });
+  flush();
+  return joinList(chunks);
+}
+
+function roleWord(officers) {
+  const named = filled(officers);
+  if (named.length === 1) return named[0].role || 'Director';
+  return 'Directors';
+}
+
+/** Who physically signs for a party, and in what capacity. */
+function partySignatories(p) {
+  if (p.kind === 'individual')       return p.name || p.address ? [{name:p.name, role:''}] : [];
+  if (p.kind === 'trust_individual') return filled(p.trustees).map(t => ({name:t.name, role:'Trustee'}));
+  return filled(p.officers).map(o => ({name:o.name, role:o.role || 'Director'}));
+}
+
+/** How a party is described where it agrees to / gives the direction. */
+function partyCapacityClause(p) {
+  if (p.kind === 'individual') return peoplePhrase([p]);
+  if (p.kind === 'trust_individual') {
+    const names = filled(p.trustees);
+    return peoplePhrase(p.trustees) + ' as Trustee' + (names.length > 1 ? 's' : '') + ' of ' + (p.trustName || BLANK);
+  }
+  const who = peoplePhrase(p.officers);
+  const of = p.kind === 'trust_corporate'
+    ? companyName(p) + ' ATF ' + (p.trustName || BLANK)
+    : companyName(p);
+  return (who || BLANK) + ' as ' + roleWord(p.officers) + ' of ' + of;
+}
+
+const allSignatories = list => list.flatMap(partySignatories);
+/** "We," for two or more signing parties, "I," for one. */
+const weOrI = n => (n > 1 ? 'We, ' : 'I, ');
+
+function propertyPhrase() {
+  return S.properties.filter(pr => pr.address || pr.volume || pr.folio).map(pr => {
+    const extent = pr.extent === 'portion'
+      ? (pr.portion ? 'the portion of the land being ' + pr.portion : 'a portion of the land')
+      : 'the whole of the land';
+    const ct = (pr.volume || pr.folio)
+      ? ' in Certificate of Title Volume ' + (pr.volume || '____') + ' and Folio ' + (pr.folio || '____')
+      : '';
+    return clean(pr.address) + ' being ' + extent + ct;
+  }).join('; and the property situated at ');
+}
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+function formatContractDate() {
+  const raw = val('contractDate');
+  if (!raw) return BLANK;
+  const [y, m, d] = raw.split('-').map(Number);
+  if (!y || !m || !d) return BLANK;
+  return String(d).padStart(2, '0') + ' ' + MONTHS[m - 1] + ' ' + y;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Document blocks — shared by the preview, the DOCX and the PDF
+ * ------------------------------------------------------------------ */
+function buildBlocks() {
+  const B = [];
+  const p = (text, cls) => B.push({t:'p', text, cls});
+  const ctype = val('contractType') === '__other' ? val('contractTypeOther') : val('contractType');
+  const vend  = partiesPhrase(S.vendors);
+  const purch = partiesPhrase(S.purchasers);
+
+  B.push({t:'title', text: val('docTitle')});
+  p('To: ' + (vend || BLANK), 'plain');
+
+  p('In reference to the Contract for the Sale of Land – ' + (ctype || BLANK) + ' Property dated ' +
+    formatContractDate() + ' ("the Contract") and made between ' + (vend || BLANK) +
+    ' as Vendor, and ' + (purch || BLANK) + ' as Purchaser, for the sale and purchase of the property situated at ' +
+    (propertyPhrase() || BLANK) + '.');
+
+  const directors = allSignatories(S.purchasers);
+  const purchClauses = joinList(S.purchasers.map(partyCapacityClause).filter(Boolean));
+  p(weOrI(directors.length) + (purchClauses || BLANK));
+  p('Hereby direct that,', 'plain');
+
+  p('The Contract and the Land shall be assigned to ' + (partiesPhrase(S.nominees) || BLANK) + '.');
+
+  p('SIGNED by the said', 'exec');
+  directors.forEach(s => B.push({t:'sig', ...s}));
+
+  const accepters = allSignatories(S.nominees);
+  const accClauses = joinList(S.nominees.map(partyCapacityClause).filter(Boolean));
+  p(weOrI(accepters.length) + (accClauses || BLANK) +
+    ', hereby agree to the terms of the direction by ' + (purch || BLANK) +
+    ', and accept assignment of the Contract and the Land.');
+
+  p('SIGNED by the said', 'exec');
+  accepters.forEach(s => B.push({t:'sig', ...s}));
+
+  return B;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Preview
+ * ------------------------------------------------------------------ */
+function docHtml() {
+  const gap = sigSpace().px;
+  return buildBlocks().map(b => {
+    if (b.t === 'title') return '<h2>' + esc(b.text) + '</h2>';
+    if (b.t === 'sig')   return `<div class="sigblock" style="margin-top:${gap}px">
+        <div class="sigline"></div>
+        <div class="signame">${esc(b.name || BLANK)}</div>
+        ${b.role ? '<div class="sigrole">(' + esc(b.role) + ')</div>' : ''}
+      </div>`;
+    const cls = b.cls === 'exec' ? 'plain execution' : (b.cls === 'plain' ? 'plain' : '');
+    return '<p class="' + cls + '">' + esc(b.text) + '</p>';
+  }).join('');
+}
+
+function renderPreview() { document.getElementById('preview').innerHTML = docHtml(); }
+function render() {
+  toggleSections();
+  const echo = document.getElementById('contractDateEcho');
+  if (echo) echo.textContent = val('contractDate') ? 'Reads as: ' + formatContractDate() : '';
+  renderPreview();
+}
+function renderAll() { renderForm(); render(); }
+
+/* ------------------------------------------------------------------ *
+ *  DOCX
+ * ------------------------------------------------------------------ */
+function downloadDocx() {
+  if (typeof docx === 'undefined') { fallbackDoc(); return; }
+  const {Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle} = docx;
+  const children = [];
+
+  buildBlocks().forEach(b => {
+    if (b.t === 'title') {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER, spacing:{after:260},
+        children:[new TextRun({text:b.text.toUpperCase(), bold:true, underline:{}})]
+      }));
+      return;
+    }
+    if (b.t === 'sig') {
+      // Ruled signing line, then the name in bold with the capacity beneath it.
+      children.push(new Paragraph({spacing:{before: sigSpace().twips}, children:[]}));
+      children.push(new Paragraph({
+        spacing:{after:40},
+        border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
+        children:[new TextRun({text:'\t\t\t\t\t\t'})]
+      }));
+      children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:b.name || BLANK, bold:true})]}));
+      if (b.role) children.push(new Paragraph({spacing:{after:120}, children:[new TextRun({text:'(' + b.role + ')', italics:true})]}));
+      return;
+    }
+    children.push(new Paragraph({
+      spacing:{after:140, line:264},
+      alignment: b.cls ? AlignmentType.LEFT : AlignmentType.JUSTIFIED,
+      children:[new TextRun({text:b.text, bold: b.cls === 'exec'})]
+    }));
+  });
+
+  const doc = new Document({
+    styles:{default:{document:{run:{font:'Arial', size:22}}}},
+    sections:[{properties:{
+      page:{size:{width:11906, height:16838},                       // A4 portrait
+            margin:{top:1134, bottom:1134, left:1134, right:1134}}   // 20 mm
+    }, children}]
+  });
+
+  Packer.toBlob(doc).then(blob => save(blob, fileName() + '.docx'))
+    .catch(e => { console.error(e); fallbackDoc(); });
+}
+
+/* Word-readable HTML fallback when the docx library is unavailable (offline). */
+function fallbackDoc() {
+  const html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
+    '<style>' + DOC_CSS + '</style></head><body><div class="doc">' + docHtml() + '</div></body></html>';
+  save(new Blob(['﻿' + html], {type:'application/msword'}), fileName() + '.doc');
+  setStatus('docx library unavailable — exported .doc instead');
+}
+
+const DOC_CSS = `@page{size:A4;margin:20mm}
+.doc{font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.3;color:#000;background:#fff}
+.doc h2{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:0 0 16px}
+.doc p{margin:0 0 9px;text-align:justify}
+.doc p.plain{text-align:left}
+.doc .sigblock{margin:20px 0 12px;page-break-inside:avoid}
+.doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
+.doc .signame{font-weight:700}
+.doc .sigrole{font-style:italic}
+.doc .execution{font-weight:700}`;
+
+/* ------------------------------------------------------------------ *
+ *  PDF — laid out directly with jsPDF so the text stays selectable and
+ *  the typography matches the DOCX (Times New Roman 12pt, 1" margins).
+ * ------------------------------------------------------------------ */
+function downloadPdf() {
+  const d = buildPdfDoc();
+  if (!d) { window.print(); return; }
+  d.save(fileName() + '.pdf');
+}
+
+function buildPdfDoc() {
+  const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFCtor) return null;
+
+  const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
+  const M = 20, W = 210 - M * 2, BOTTOM = 297 - M, LH = 5.1, SIZE = 11;
+  let y = M;
+  d.setFont('helvetica', 'normal').setFontSize(SIZE);   // Helvetica = Arial metrics
+  const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
+
+  const writeLines = (text, justify) => {
+    const lines = d.splitTextToSize(text, W);
+    lines.forEach((ln, i) => {
+      need(LH);
+      const words = ln.split(' ').filter(Boolean);
+      if (justify && i < lines.length - 1 && words.length > 1) {
+        const gap = (W - words.reduce((s, w) => s + d.getTextWidth(w), 0)) / (words.length - 1);
+        let x = M;
+        words.forEach(w => { d.text(w, x, y); x += d.getTextWidth(w) + gap; });
+      } else {
+        d.text(ln, M, y);
+      }
+      y += LH;
+    });
+  };
+
+  buildBlocks().forEach(b => {
+    if (b.t === 'title') {
+      d.setFont('helvetica', 'bold');
+      const text = b.text.toUpperCase();
+      const w = d.getTextWidth(text);
+      need(LH * 2);
+      d.text(text, 105, y, {align:'center'});
+      d.setLineWidth(0.3);
+      d.line(105 - w / 2, y + 1.1, 105 + w / 2, y + 1.1);
+      y += LH + 3;
+      d.setFont('helvetica', 'normal');
+      return;
+    }
+    if (b.t === 'sig') {
+      const gap = sigSpace().mm;
+      need(gap + 13);
+      y += gap;
+      d.setLineWidth(0.3);
+      d.line(M, y, M + W * 0.62, y);
+      y += 4.4;
+      d.setFont('helvetica', 'bold');
+      d.text(b.name || BLANK, M, y);
+      y += LH;
+      if (b.role) {
+        d.setFont('helvetica', 'italic');
+        d.text('(' + b.role + ')', M, y);
+        y += LH;
+      }
+      d.setFont('helvetica', 'normal');
+      return;
+    }
+    if (b.cls === 'exec') d.setFont('helvetica', 'bold');
+    writeLines(b.text, !b.cls);
+    d.setFont('helvetica', 'normal');
+    y += 1.6;
+  });
+
+  return d;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Files
+ * ------------------------------------------------------------------ */
+function fileName() {
+  const first = S.properties[0]?.address || 'Nomination';
+  return 'Nomination - ' + first.split(/[\n,]/)[0].replace(/[\\/:*?"<>|]/g, '').trim();
+}
+function save(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+let statusTimer;
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => document.getElementById('status').textContent = '', 4000);
+}
+
+const SIMPLE = ['contractType','contractTypeOther','contractDate','docTitle','sigSpace'];
+const snapshot = () => {
+  const fields = {};
+  SIMPLE.forEach(id => fields[id] = val(id));
+  return {version: 2, fields, lists: S};
+};
+
+const FIELD_DEFAULTS = {sigSpace:'standard', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
+const setFields = f => SIMPLE.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
+});
+
+function applyDraft(d) {
+  setFields(d.fields || {});
+  const lists = migrate(d);
+  Object.keys(S).forEach(k => S[k] = lists[k] || []);
+  renderAll();
+}
+
+/* Drafts saved before the parties refactor stored the nominee as loose
+   fields plus kind-specific lists; fold those into a single party. */
+function migrate(d) {
+  const l = d.lists || {};
+  if (d.version === 2 || l.nominees) {
+    return {...l, vendors: (l.vendors || []).map(v => ({...newParty('individual'), ...v}))};
+  }
+  const f = d.fields || {};
+  const kind = f.nomType || 'individuals';
+  const nominees = [];
+  if (kind === 'individuals') {
+    (l.nomIndividuals || []).forEach(i => nominees.push({...newParty('individual'), name:i.name, address:i.address}));
+  } else if (kind === 'trust_individual') {
+    nominees.push({...newParty('trust_individual'), trustName:f.nomTrustName, address:f.nomAddress,
+                   trustees:(l.nomTrustees || []).map(t => ({id:uid(), name:t.name, address:t.address}))});
+  } else {
+    nominees.push({...newParty(kind === 'company' ? 'company' : 'trust_corporate'),
+                   name:f.nomCompanyName, acn:f.nomAcn, abn:f.nomAbn,
+                   address:f.nomAddress || f.nomCompanyAddress, trustName:f.nomTrustName,
+                   officers:(l.nomOfficers || []).map(o => ({id:uid(), name:o.name, role:o.role, address:o.address}))});
+  }
+  return {
+    vendors:    (l.vendors || []).map(v => ({...newParty('individual'), name:v.name, address:v.address})),
+    purchasers: (l.purchasers || []).map(p => ({...newParty(p.kind === 'company' ? 'company' : 'individual'),
+                                                name:p.name, address:p.address, acn:p.acn, abn:p.abn,
+                                                officers:(p.officers || []).map(o => ({id:uid(), ...o}))})),
+    properties: l.properties || [],
+    nominees
+  };
+}
+
+/* Save to a folder the user picks. Uses the File System Access API where
+   available (Chrome/Edge), otherwise falls back to the downloads folder. */
+async function saveFile() {
+  const json = JSON.stringify(snapshot(), null, 2);
+  const name = fileName() + '.json';
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await showSaveFilePicker({
+        suggestedName: name,
+        types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
+      });
+      const w = await handle.createWritable();
+      await w.write(json);
+      await w.close();
+      setStatus('Saved to ' + handle.name);
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;          // user cancelled
+      console.warn('File picker unavailable, falling back to download', e);
+    }
+  }
+  save(new Blob([json], {type:'application/json'}), name);
+  setStatus('Saved to your Downloads folder');
+}
+
+async function openFile() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await showOpenFilePicker({
+        types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
+      });
+      applyDraft(JSON.parse(await (await handle.getFile()).text()));
+      setStatus('Loaded ' + handle.name);
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.warn('File picker unavailable, falling back to file input', e);
+    }
+  }
+  document.getElementById('fileInput').click();
+}
+
+function handleFilePick(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { applyDraft(JSON.parse(r.result)); setStatus('Loaded ' + file.name); }
+    catch { setStatus('That file is not a valid draft'); }
+  };
+  r.readAsText(file);
+  input.value = '';
+}
+
+/* ------------------------------------------------------------------ *
+ *  Sample data — fictional parties, for trying the tool out or checking
+ *  how a particular structure reads before entering the real matter.
+ * ------------------------------------------------------------------ */
+const party = (kind, o = {}) => Object.assign(newParty(kind), o);
+const officer  = (name, role, address) => ({id:uid(), name, role, address});
+const trustee  = (name, address) => ({id:uid(), name, address});
+const property = o => Object.assign({id:uid(), address:'', volume:'', folio:'', extent:'whole', portion:''}, o);
+
+const SELLER_ADDR = '5 Cardnell Crescent, Elizabeth East SA 5112';
+const BUYER_ADDR  = '98 Kensington Road, Klemzig SA 5087';
+
+const SAMPLES = {
+  trust: {
+    label: 'Individuals → company ATF trust',
+    fields: {contractType:'Residential', contractDate:'2026-08-05'},
+    vendors: [party('individual', {name:'Alice Jane Harper', address:SELLER_ADDR}),
+              party('individual', {name:'Brendan Lee Harper', address:SELLER_ADDR})],
+    purchasers: [party('individual', {name:'Chandra Nilesh Patel', address:BUYER_ADDR}),
+                 party('individual', {name:'Devika Nilesh Patel', address:BUYER_ADDR})],
+    properties: [property({address:SELLER_ADDR, volume:'5083', folio:'87'})],
+    nominees: [party('trust_corporate', {
+      name:'Harper Street Investments Pty Ltd', acn:'701 139 773', address:BUYER_ADDR,
+      trustName:'Harper Street Investments BT',
+      officers:[officer('Chandra Nilesh Patel', 'Director', BUYER_ADDR),
+                officer('Devika Nilesh Patel', 'Director', BUYER_ADDR)]})]
+  },
+
+  simple: {
+    label: 'Individuals → individuals',
+    fields: {contractType:'Residential', contractDate:'2026-09-14'},
+    vendors: [party('individual', {name:'Margaret Ellen Doyle', address:'22 Ferndale Avenue, Prospect SA 5082'})],
+    purchasers: [party('individual', {name:'Samuel Tobias Reid', address:'8 Waverley Street, Norwood SA 5067'})],
+    properties: [property({address:'22 Ferndale Avenue, Prospect SA 5082', volume:'6112', folio:'403'})],
+    nominees: [party('individual', {name:'Samuel Tobias Reid', address:'8 Waverley Street, Norwood SA 5067'}),
+               party('individual', {name:'Priya Anne Reid', address:'8 Waverley Street, Norwood SA 5067'})]
+  },
+
+  mixed: {
+    label: 'Mixed entities',
+    fields: {contractType:'Commercial', contractDate:'2026-07-21'},
+    vendors: [party('company', {name:'Westbourne Holdings Pty Ltd', acn:'114 552 908',
+                                address:'Level 3, 41 Currie Street, Adelaide SA 5000',
+                                officers:[officer('Gregory Paul Vance', 'Sole Director', '14 Ashcroft Road, Burnside SA 5066')]})],
+    purchasers: [party('individual', {name:'Hannah Louise Kerr', address:'6 Malvern Terrace, Unley SA 5061'}),
+                 party('company', {name:'Kerr Commercial Pty Ltd', acn:'623 887 145', abn:'42 623 887 145',
+                                   address:'6 Malvern Terrace, Unley SA 5061',
+                                   officers:[officer('Hannah Louise Kerr', 'Director', '6 Malvern Terrace, Unley SA 5061'),
+                                             officer('Ian Douglas Kerr', 'Secretary', '6 Malvern Terrace, Unley SA 5061')]})],
+    properties: [property({address:'204 Grote Street, Adelaide SA 5000', volume:'5721', folio:'19'})],
+    nominees: [party('individual', {name:'Hannah Louise Kerr', address:'6 Malvern Terrace, Unley SA 5061'}),
+               party('company', {name:'Kerr Property Nominees Pty Ltd', acn:'655 010 224',
+                                 address:'6 Malvern Terrace, Unley SA 5061',
+                                 officers:[officer('Ian Douglas Kerr', 'Sole Director', '6 Malvern Terrace, Unley SA 5061')]}),
+               party('trust_individual', {trustName:'Kerr Family Trust',
+                                          trustees:[trustee('Hannah Louise Kerr', '6 Malvern Terrace, Unley SA 5061'),
+                                                    trustee('Ian Douglas Kerr', '6 Malvern Terrace, Unley SA 5061')]})]
+  },
+
+  portion: {
+    label: 'Company → company, portion of the land',
+    fields: {contractType:'Rural', contractDate:'2026-05-02'},
+    vendors: [party('individual', {name:'Robert Alan Whitmore', address:'Section 42, Barossa Valley Way, Nuriootpa SA 5355'})],
+    purchasers: [party('company', {name:'Redgum Agriculture Pty Ltd', acn:'308 774 216', abn:'71 308 774 216',
+                                   address:'19 Murray Street, Tanunda SA 5352',
+                                   officers:[officer('Teresa Anne Blackwood', 'Director', '19 Murray Street, Tanunda SA 5352'),
+                                             officer('Michael John Blackwood', 'Director', '19 Murray Street, Tanunda SA 5352')]})],
+    properties: [property({address:'Section 42, Barossa Valley Way, Nuriootpa SA 5355', volume:'5410', folio:'772',
+                           extent:'portion', portion:'Allotment 12 in Deposited Plan 94517'}),
+                 property({address:'Section 43, Barossa Valley Way, Nuriootpa SA 5355', volume:'5410', folio:'773'})],
+    nominees: [party('company', {name:'Redgum Rural Holdings Pty Ltd', acn:'660 123 887',
+                                 address:'19 Murray Street, Tanunda SA 5352',
+                                 officers:[officer('Teresa Anne Blackwood', 'Sole Director', '19 Murray Street, Tanunda SA 5352')]})]
+  }
+};
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  if (!s) return;
+  setFields({...s.fields, sigSpace: val('sigSpace')});   // keep the chosen signing space
+  ['vendors', 'purchasers', 'nominees', 'properties'].forEach(k => S[k] = JSON.parse(JSON.stringify(s[k])));
+  renderAll();
+  setStatus('Loaded sample: ' + s.label);
+}
+
+function resetAll() {
+  Object.keys(S).forEach(k => S[k] = []);
+  setFields({sigSpace: val('sigSpace')});
+  seed();
+}
+
+function seed() {
+  S.vendors.push(newParty('individual'));
+  S.purchasers.push(newParty('individual'));
+  S.nominees.push(newParty('individual'));
+  addProperty();
+}
+
+seed();
+renderAll();
+</script>
+</body>
+</html>

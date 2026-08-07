@@ -1,0 +1,16 @@
+# Client data must never be committed — drafts and generated documents
+# are produced next to the tools when they are used locally.
+*.json
+!package.json
+!package-lock.json
+*.docx
+*.doc
+*.pdf
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
