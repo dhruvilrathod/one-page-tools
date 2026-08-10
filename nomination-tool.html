@@ -29,6 +29,10 @@
   fieldset{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}
   legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--accent)}
   label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  label.withcopy{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+  button.copy{padding:1px 8px;font-size:11px;color:var(--accent);border-color:#c5d5e8;background:#f2f7fc;
+              border-radius:4px;white-space:nowrap;line-height:1.6}
+  button.copy:hover{background:var(--accent);border-color:var(--accent);color:#fff}
   input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
   textarea{resize:vertical;min-height:48px}
   .row{display:flex;gap:10px}
@@ -220,6 +224,48 @@ function addBar(listName) {
     .join('');
 }
 
+/* ---- "Same as above" address copying -------------------------------- *
+ * Most parties in a matter share an address, so every address field that
+ * has an earlier address to inherit offers a one-click copy. The source is
+ * the nearest preceding entry that actually has an address filled in.
+ * ------------------------------------------------------------------- */
+function lastAddressBefore(list, id) {
+  const i = list.findIndex(x => x.id === id);
+  for (let j = i - 1; j >= 0; j--) {
+    if ((list[j].address || '').trim()) return list[j].address;
+  }
+  return '';
+}
+
+/** Address a party can inherit: the previous party in the same list. */
+const partyAddressSource = (listName, id) => lastAddressBefore(S[listName], id);
+
+/** Address an officer or trustee can inherit: the previous one, else the
+    entity's own address. */
+function subAddressSource(listName, pid, key, sid) {
+  const p = find(listName, pid);
+  return lastAddressBefore(p[key], sid) || (p.address || '').trim();
+}
+
+function copyPartyAddress(listName, id) {
+  const src = partyAddressSource(listName, id);
+  if (src) setParty(listName, id, 'address', src), renderAll();
+}
+function copySubAddress(listName, pid, key, sid) {
+  const src = subAddressSource(listName, pid, key, sid);
+  if (src) setSub(listName, pid, key, sid, 'address', src), renderAll();
+}
+
+/** An address label, with a copy button when there is something to copy. */
+function addressLabel(text, source, onclick) {
+  if (!source) return `<label>${text}</label>`;
+  const oneLine = source.replace(/\s*\n\s*/g, ', ');
+  const hint = oneLine.length > 44 ? oneLine.slice(0, 42) + '…' : oneLine;
+  return `<label class="withcopy"><span>${text}</span>
+    <button type="button" class="copy" title="Use ${esc(oneLine)}" onclick="${onclick}">↑ Same as above</button>
+  </label>`;
+}
+
 function officerRows(listName, p) {
   return p.officers.map((o, i) => `
     <div class="card sub">
@@ -234,7 +280,8 @@ function officerRows(listName, p) {
             ${ROLES.map(r => `<option ${o.role === r ? 'selected' : ''}>${r}</option>`).join('')}
           </select></div>
       </div>
-      <label>Address</label>
+      ${addressLabel('Address', subAddressSource(listName, p.id, 'officers', o.id),
+                     `copySubAddress('${listName}','${p.id}','officers','${o.id}')`)}
       <textarea placeholder="${PH.addr}"
         oninput="setSub('${listName}','${p.id}','officers','${o.id}','address',this.value)">${esc(o.address)}</textarea>
     </div>`).join('');
@@ -248,7 +295,8 @@ function trusteeRows(listName, p) {
       <label>Name</label>
       <input value="${esc(t.name)}" placeholder="${PH.name}"
              oninput="setSub('${listName}','${p.id}','trustees','${t.id}','name',this.value)">
-      <label>Address</label>
+      ${addressLabel('Address', subAddressSource(listName, p.id, 'trustees', t.id),
+                     `copySubAddress('${listName}','${p.id}','trustees','${t.id}')`)}
       <textarea placeholder="${PH.addr}"
         oninput="setSub('${listName}','${p.id}','trustees','${t.id}','address',this.value)">${esc(t.address)}</textarea>
     </div>`).join('');
@@ -260,12 +308,14 @@ function partyCard(listName, p, i) {
       <button class="mini del" onclick="removeParty('${listName}','${p.id}')">Remove</button>
     </div>`;
   const set = f => `setParty('${listName}','${p.id}','${f}',this.value)`;
+  const addrLabel = text => addressLabel(text, partyAddressSource(listName, p.id),
+                                         `copyPartyAddress('${listName}','${p.id}')`);
 
   if (p.kind === 'individual') {
     return `<div class="card">${head}
       <label>Full name</label>
       <input value="${esc(p.name)}" placeholder="${PH.name}" oninput="${set('name')}">
-      <label>Address</label>
+      ${addrLabel('Address')}
       <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
     </div>`;
   }
@@ -277,7 +327,7 @@ function partyCard(listName, p, i) {
       <div><label>ACN</label><input value="${esc(p.acn)}" placeholder="${PH.acn}" oninput="${set('acn')}"></div>
       <div><label>ABN</label><input value="${esc(p.abn)}" placeholder="${PH.abn}" oninput="${set('abn')}"></div>
     </div>
-    <label>Address</label>
+    ${addrLabel('Address')}
     <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
     <label>Directors / secretaries (signing)</label>
     ${officerRows(listName, p)}
@@ -297,7 +347,7 @@ function partyCard(listName, p, i) {
       <label>Trustees</label>
       ${trusteeRows(listName, p)}
       <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','trustees')">+ Add trustee</button></div>
-      <label>Trust address (optional — defaults to the trustees' address)</label>
+      ${addrLabel("Trust address (optional — defaults to the trustees' address)")}
       <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
     </div>`;
 }
