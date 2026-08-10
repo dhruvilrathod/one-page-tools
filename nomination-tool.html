@@ -39,7 +39,8 @@
   .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
   .hide{display:none!important}
   .hint{font-size:11px;color:var(--muted);margin-top:4px}
-  .status{font-size:12px;color:var(--muted)}
+  .status{font-size:12px;color:var(--muted);max-width:38ch}
+  .status.error{color:var(--danger);font-weight:600;max-width:none}
   /* document look — shared by preview, .doc export and print */
   #previewWrap{position:sticky;top:64px}
   #preview{border:1px solid var(--line);border-radius:6px;padding:60px 64px;max-height:78vh;overflow:auto}
@@ -711,10 +712,13 @@ function save(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 let statusTimer;
-function setStatus(msg) {
-  document.getElementById('status').textContent = msg;
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => document.getElementById('status').textContent = '', 4000);
+  statusTimer = setTimeout(() => { el.textContent = ''; el.classList.remove('error'); },
+                           isError ? 12000 : 4000);   // errors stay long enough to read
 }
 
 const SIMPLE = ['contractType','contractTypeOther','contractDate','docTitle','sigSpace'];
@@ -773,53 +777,92 @@ function migrate(d) {
 async function saveFile() {
   const json = JSON.stringify(snapshot(), null, 2);
   const name = fileName() + '.json';
-  if (window.showSaveFilePicker) {
-    try {
-      const handle = await showSaveFilePicker({
-        suggestedName: name,
-        types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
-      });
-      const w = await handle.createWritable();
-      await w.write(json);
-      await w.close();
-      setStatus('Saved to ' + handle.name);
-      return;
-    } catch (e) {
-      if (e.name === 'AbortError') return;          // user cancelled
-      console.warn('File picker unavailable, falling back to download', e);
-    }
+  const toDownloads = () => {
+    save(new Blob([json], {type:'application/json'}), name);
+    setStatus('Saved to your Downloads folder');
+  };
+  if (!window.showSaveFilePicker) { toDownloads(); return; }
+
+  let handle;
+  try {
+    handle = await showSaveFilePicker({
+      suggestedName: name,
+      types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') return;            // user cancelled
+    console.warn('File picker unavailable, falling back to download', e);
+    toDownloads();
+    return;
   }
-  save(new Blob([json], {type:'application/json'}), name);
-  setStatus('Saved to your Downloads folder');
+
+  try {
+    const w = await handle.createWritable();
+    await w.write(json);
+    await w.close();
+    setStatus('Saved to ' + handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not write ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
 }
 
 async function openFile() {
-  if (window.showOpenFilePicker) {
-    try {
-      const [handle] = await showOpenFilePicker({
-        types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
-      });
-      applyDraft(JSON.parse(await (await handle.getFile()).text()));
-      setStatus('Loaded ' + handle.name);
-      return;
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      console.warn('File picker unavailable, falling back to file input', e);
-    }
+  // Only a failure of the picker itself may fall back to the <input> dialog —
+  // a failure to read or parse the chosen file must be reported, or the user
+  // just gets a second file dialog with no explanation.
+  if (!window.showOpenFilePicker) { document.getElementById('fileInput').click(); return; }
+
+  let handle;
+  try {
+    [handle] = await showOpenFilePicker({
+      types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') return;                 // user cancelled
+    console.warn('File picker unavailable, falling back to file input', e);
+    document.getElementById('fileInput').click();
+    return;
   }
-  document.getElementById('fileInput').click();
+
+  try {
+    loadDraftText(await (await handle.getFile()).text(), handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
 }
 
 function handleFilePick(input) {
   const file = input.files[0];
+  input.value = '';
   if (!file) return;
   const r = new FileReader();
-  r.onload = () => {
-    try { applyDraft(JSON.parse(r.result)); setStatus('Loaded ' + file.name); }
-    catch { setStatus('That file is not a valid draft'); }
-  };
+  r.onload    = () => loadDraftText(r.result, file.name);
+  r.onerror   = () => setStatus('Could not read ' + file.name +
+                               ' — if it is stored in OneDrive, open it once to download it locally', true);
   r.readAsText(file);
-  input.value = '';
+}
+
+function loadDraftText(text, name) {
+  let d;
+  try {
+    d = JSON.parse(text);
+  } catch {
+    setStatus(name + ' is not a valid draft file (not JSON)', true);
+    return;
+  }
+  if (!d || typeof d !== 'object' || (!d.lists && !d.fields)) {
+    setStatus(name + ' does not look like a nomination draft — nothing was changed', true);
+    return;
+  }
+  try {
+    applyDraft(d);
+    setStatus('Loaded ' + name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not load ' + name + ' — ' + (e.message || e.name), true);
+  }
 }
 
 /* ------------------------------------------------------------------ *
