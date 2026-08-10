@@ -420,16 +420,32 @@ function partySignatories(p) {
 
 /** How a party is described where it agrees to / gives the direction. */
 function partyCapacityClause(p) {
+  const at = clean(p.address) ? ' of ' + clean(p.address) : '';
   if (p.kind === 'individual') return peoplePhrase([p]);
   if (p.kind === 'trust_individual') {
     const names = filled(p.trustees);
-    return peoplePhrase(p.trustees) + ' as Trustee' + (names.length > 1 ? 's' : '') + ' of ' + (p.trustName || BLANK);
+    return peoplePhrase(p.trustees) + ' as Trustee' + (names.length > 1 ? 's' : '') +
+           ' of ' + (p.trustName || BLANK) + at;
   }
   const who = peoplePhrase(p.officers);
   const of = p.kind === 'trust_corporate'
     ? companyName(p) + ' ATF ' + (p.trustName || BLANK)
     : companyName(p);
-  return (who || BLANK) + ' as ' + roleWord(p.officers) + ' of ' + of;
+  return (who || BLANK) + ' as ' + roleWord(p.officers) + ' of ' + of + at;
+}
+
+/** Capacity clauses for a whole list, collapsing consecutive individuals who
+    share an address so it is not repeated after each name. */
+function partiesCapacityPhrase(list) {
+  const chunks = [];
+  let run = [];
+  const flush = () => { if (run.length) { chunks.push(peoplePhrase(run)); run = []; } };
+  list.forEach(p => {
+    if (p.kind === 'individual') { if (p.name || p.address) run.push(p); }
+    else { flush(); const s = partyCapacityClause(p); if (s) chunks.push(s); }
+  });
+  flush();
+  return joinList(chunks);
 }
 
 const allSignatories = list => list.flatMap(partySignatories);
@@ -477,8 +493,7 @@ function buildBlocks() {
     (propertyPhrase() || BLANK) + '.');
 
   const directors = allSignatories(S.purchasers);
-  const purchClauses = joinList(S.purchasers.map(partyCapacityClause).filter(Boolean));
-  p(weOrI(directors.length) + (purchClauses || BLANK));
+  p(weOrI(directors.length) + (partiesCapacityPhrase(S.purchasers) || BLANK));
   p('Hereby direct that,', 'plain');
 
   p('The Contract and the Land shall be assigned to ' + (partiesPhrase(S.nominees) || BLANK) + '.');
@@ -487,8 +502,7 @@ function buildBlocks() {
   directors.forEach(s => B.push({t:'sig', ...s}));
 
   const accepters = allSignatories(S.nominees);
-  const accClauses = joinList(S.nominees.map(partyCapacityClause).filter(Boolean));
-  p(weOrI(accepters.length) + (accClauses || BLANK) +
+  p(weOrI(accepters.length) + (partiesCapacityPhrase(S.nominees) || BLANK) +
     ', hereby agree to the terms of the direction by ' + (purch || BLANK) +
     ', and accept assignment of the Contract and the Land.');
 
