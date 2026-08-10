@@ -602,6 +602,15 @@ function buildPdfDoc() {
   const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
   if (!jsPDFCtor) return null;
 
+  // jsPDF's built-in fonts are WinAnsi only, so typographic characters have to
+  // be folded down to ASCII or they render as empty boxes.
+  const ascii = s => String(s)
+    .replace(/[–—]/g, '-')
+    .replace(/[‘’‚]/g, "'")
+    .replace(/[“”„]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/ /g, ' ');
+
   const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
   const M = 20, W = 210 - M * 2, BOTTOM = 297 - M, LH = 5.1, SIZE = 11;
   let y = M;
@@ -609,7 +618,7 @@ function buildPdfDoc() {
   const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
 
   const writeLines = (text, justify) => {
-    const lines = d.splitTextToSize(text, W);
+    const lines = d.splitTextToSize(ascii(text), W);
     lines.forEach((ln, i) => {
       need(LH);
       const words = ln.split(' ').filter(Boolean);
@@ -627,7 +636,7 @@ function buildPdfDoc() {
   buildBlocks().forEach(b => {
     if (b.t === 'title') {
       d.setFont('helvetica', 'bold');
-      const text = b.text.toUpperCase();
+      const text = ascii(b.text).toUpperCase();
       const w = d.getTextWidth(text);
       need(LH * 2);
       d.text(text, 105, y, {align:'center'});
@@ -645,11 +654,11 @@ function buildPdfDoc() {
       d.line(M, y, M + W * 0.62, y);
       y += 4.4;
       d.setFont('helvetica', 'bold');
-      d.text(b.name || BLANK, M, y);
+      d.text(ascii(b.name || BLANK), M, y);
       y += LH;
       if (b.role) {
         d.setFont('helvetica', 'italic');
-        d.text('(' + b.role + ')', M, y);
+        d.text(ascii('(' + b.role + ')'), M, y);
         y += LH;
       }
       d.setFont('helvetica', 'normal');
@@ -667,9 +676,17 @@ function buildPdfDoc() {
 /* ------------------------------------------------------------------ *
  *  Files
  * ------------------------------------------------------------------ */
+/* A short reference for the download name — enough to tell files apart,
+   without putting the client's full address in the filename. */
 function fileName() {
-  const first = S.properties[0]?.address || 'Nomination';
-  return 'Nomination - ' + first.split(/[\n,]/)[0].replace(/[\\/:*?"<>|]/g, '').trim();
+  let ref = (S.properties[0]?.address || '').split(/[\n,]/)[0]
+    .replace(/\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b\.?\s*\d{4}\b/gi, '')  // state + postcode
+    .replace(/\b\d{4}\b\s*$/, '')                                        // trailing postcode
+    .replace(/[\\/]/g, '-')
+    .replace(/[:*?"<>|]/g, '')
+    .trim();
+  ref = ref.split(/\s+/).slice(0, 3).join(' ').slice(0, 24).trim();      // street number and name only
+  return ref ? 'Nomination - ' + ref : 'Nomination Document';
 }
 function save(blob, name) {
   const a = document.createElement('a');
