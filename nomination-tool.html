@@ -52,6 +52,7 @@
   .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
   .doc .signame{font-weight:700}
   .doc .sigrole{font-style:italic}
+  .doc p.resume{margin-top:22px}
   .doc .execution{letter-spacing:.4px;font-weight:700;margin-top:14px}
   @media print{
     @page{size:A4;margin:20mm}
@@ -501,14 +502,20 @@ function buildBlocks() {
  * ------------------------------------------------------------------ */
 function docHtml() {
   const gap = sigSpace().px;
+  let afterSig = false;
   return buildBlocks().map(b => {
     if (b.t === 'title') return '<h2>' + esc(b.text) + '</h2>';
-    if (b.t === 'sig')   return `<div class="sigblock" style="margin-top:${gap}px">
+    if (b.t === 'sig') {
+      afterSig = true;
+      return `<div class="sigblock" style="margin-top:${gap}px">
         <div class="sigline"></div>
         <div class="signame">${esc(b.name || BLANK)}</div>
         ${b.role ? '<div class="sigrole">(' + esc(b.role) + ')</div>' : ''}
       </div>`;
-    const cls = b.cls === 'exec' ? 'plain execution' : (b.cls === 'plain' ? 'plain' : '');
+    }
+    const cls = [b.cls === 'exec' ? 'plain execution' : (b.cls === 'plain' ? 'plain' : ''),
+                 afterSig ? 'resume' : ''].filter(Boolean).join(' ');
+    afterSig = false;
     return '<p class="' + cls + '">' + esc(b.text) + '</p>';
   }).join('');
 }
@@ -525,10 +532,21 @@ function renderAll() { renderForm(); render(); }
 /* ------------------------------------------------------------------ *
  *  DOCX
  * ------------------------------------------------------------------ */
+/* A4 (11906 twips) less 20 mm margins each side. */
+const TEXT_WIDTH = 11906 - 1134 * 2;
+
 function downloadDocx() {
-  if (typeof docx === 'undefined') { fallbackDoc(); return; }
-  const {Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle} = docx;
+  const doc = buildDocxDoc();
+  if (!doc) { fallbackDoc(); return; }
+  docx.Packer.toBlob(doc).then(blob => save(blob, fileName() + '.docx'))
+    .catch(e => { console.error(e); fallbackDoc(); });
+}
+
+function buildDocxDoc() {
+  if (typeof docx === 'undefined') return null;
+  const {Document, Paragraph, TextRun, AlignmentType, BorderStyle} = docx;
   const children = [];
+  let afterSig = false;
 
   buildBlocks().forEach(b => {
     if (b.t === 'title') {
@@ -543,30 +561,34 @@ function downloadDocx() {
       children.push(new Paragraph({spacing:{before: sigSpace().twips}, children:[]}));
       children.push(new Paragraph({
         spacing:{after:40},
+        // The rule is the paragraph's bottom border, so indenting the right
+        // edge is what shortens it — 62% of the text width, as in the preview.
+        indent:{right: Math.round(TEXT_WIDTH * 0.38)},
         border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
-        children:[new TextRun({text:'\t\t\t\t\t\t'})]
+        children:[new TextRun({text:''})]
       }));
       children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:b.name || BLANK, bold:true})]}));
       if (b.role) children.push(new Paragraph({spacing:{after:120}, children:[new TextRun({text:'(' + b.role + ')', italics:true})]}));
+      afterSig = true;
       return;
     }
     children.push(new Paragraph({
-      spacing:{after:140, line:264},
+      // Text resuming after a signature block needs air, or it collides with
+      // the capacity line above it.
+      spacing:{after:140, line:264, before: afterSig ? 480 : 0},
       alignment: b.cls ? AlignmentType.LEFT : AlignmentType.JUSTIFIED,
       children:[new TextRun({text:b.text, bold: b.cls === 'exec'})]
     }));
+    afterSig = false;
   });
 
-  const doc = new Document({
+  return new Document({
     styles:{default:{document:{run:{font:'Arial', size:22}}}},
     sections:[{properties:{
       page:{size:{width:11906, height:16838},                       // A4 portrait
             margin:{top:1134, bottom:1134, left:1134, right:1134}}   // 20 mm
     }, children}]
   });
-
-  Packer.toBlob(doc).then(blob => save(blob, fileName() + '.docx'))
-    .catch(e => { console.error(e); fallbackDoc(); });
 }
 
 /* Word-readable HTML fallback when the docx library is unavailable (offline). */
@@ -586,6 +608,7 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
 .doc .signame{font-weight:700}
 .doc .sigrole{font-style:italic}
+.doc p.resume{margin-top:22px}
 .doc .execution{font-weight:700}`;
 
 /* ------------------------------------------------------------------ *
@@ -613,7 +636,7 @@ function buildPdfDoc() {
 
   const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
   const M = 20, W = 210 - M * 2, BOTTOM = 297 - M, LH = 5.1, SIZE = 11;
-  let y = M;
+  let y = M, afterSig = false;
   d.setFont('helvetica', 'normal').setFontSize(SIZE);   // Helvetica = Arial metrics
   const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
 
@@ -662,8 +685,10 @@ function buildPdfDoc() {
         y += LH;
       }
       d.setFont('helvetica', 'normal');
+      afterSig = true;
       return;
     }
+    if (afterSig) { y += 5; afterSig = false; }   // air after a signature block
     if (b.cls === 'exec') d.setFont('helvetica', 'bold');
     writeLines(b.text, !b.cls);
     d.setFont('helvetica', 'normal');
@@ -676,18 +701,8 @@ function buildPdfDoc() {
 /* ------------------------------------------------------------------ *
  *  Files
  * ------------------------------------------------------------------ */
-/* A short reference for the download name — enough to tell files apart,
-   without putting the client's full address in the filename. */
-function fileName() {
-  let ref = (S.properties[0]?.address || '').split(/[\n,]/)[0]
-    .replace(/\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b\.?\s*\d{4}\b/gi, '')  // state + postcode
-    .replace(/\b\d{4}\b\s*$/, '')                                        // trailing postcode
-    .replace(/[\\/]/g, '-')
-    .replace(/[:*?"<>|]/g, '')
-    .trim();
-  ref = ref.split(/\s+/).slice(0, 3).join(' ').slice(0, 24).trim();      // street number and name only
-  return ref ? 'Nomination - ' + ref : 'Nomination Document';
-}
+/* Downloads are named plainly — no client details in the filename. */
+const fileName = () => 'Nomination';
 function save(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
