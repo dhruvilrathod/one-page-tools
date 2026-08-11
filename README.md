@@ -64,6 +64,20 @@ Keep each tool to one file so it can be shared, emailed or saved on its own.
 - **Signatures** print two across the page by default, or one per line, with the position in
   brackets under each rule.
 
+## Letterhead
+
+Both tools have a **Print on Acquire Conveyancing letterhead** toggle under Document options, off
+by default. When it is on, the document gets the logo and contact block as a first-page header and
+a running footer with the company name, ABN, postal address and page numbers — matching
+`Acquire Conveyancing Letter Head 1.1`. Top and bottom margins widen to make room. The setting is
+saved with the draft.
+
+The logo is embedded in each tool as a data URI, so the tools remain single files that work
+offline. Note that this repo is public, which means the logo and the contact details in it are
+publicly readable — that was a deliberate choice for convenience. If that ever becomes a concern,
+make the repo private (Pages will stop serving the shared link on a free plan) or replace the
+`LETTERHEAD` block in each tool with one that loads the logo from the user's own machine.
+
 ## Shared conventions
 
 Both tools follow the same rules, so anything you learn in one carries over:
@@ -71,7 +85,8 @@ Both tools follow the same rules, so anything you learn in one carries over:
 - A4, Arial 11pt, in the `.docx` and the `.pdf` alike; the PDF is real text, not an image.
 - Adjustable signing space for e-signature platforms.
 - Drafts save as `.json` to a folder you pick; a draft only loads into the tool that wrote it.
-- Downloads are named plainly (`Nomination`, `Declaration`) with no client details in the filename.
+- Downloads are named plainly (`Nomination`, `Never sold or occupied`) with no client details in
+  the filename.
 - Blank fields print as a rule rather than sample text, so an incomplete draft still previews.
 
 The generated wording is a starting point, not legal advice — always review a document before it
