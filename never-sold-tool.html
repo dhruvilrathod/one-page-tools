@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Never Sold or Occupied Declaration</title>
+<script src="https://unpkg.com/docx@9.0.2/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --line:#d8dbe0; --ink:#1b1d21; --muted:#6b7280;
+    --accent:#1f5fa9; --danger:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .spacer{flex:1}
+  header select{width:auto;padding:6px 8px}
+  header a.home{font-size:12px;color:var(--muted);text-decoration:none}
+  header a.home:hover{color:var(--accent)}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+  button:hover{background:#f0f2f5}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button.mini{padding:3px 9px;font-size:12px}
+  button.del{color:var(--danger);border-color:#e6c9c9}
+  .wrap{display:grid;grid-template-columns:minmax(420px,1fr) minmax(460px,1fr);gap:18px;padding:18px;align-items:start}
+  @media (max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}
+  legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--accent)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  textarea{resize:vertical;min-height:48px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .card{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:10px;margin-bottom:10px;background:#fbfcfd}
+  .card .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .sub{background:#fff;border-left-color:#b9c4d1;margin-top:10px}
+  .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .hide{display:none!important}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .status{font-size:12px;color:var(--muted);max-width:38ch}
+  .status.error{color:var(--danger);font-weight:600;max-width:none}
+  /* document look — shared by preview, .doc export and print */
+  #previewWrap{position:sticky;top:64px}
+  #preview{border:1px solid var(--line);border-radius:6px;padding:60px 64px;max-height:78vh;overflow:auto}
+  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.4;color:#000}
+  .doc h2{font-size:11pt;font-weight:400;margin:0 0 22px;font-family:inherit;letter-spacing:.3px}
+  .doc p{margin:0 0 14px}
+  .doc ol{margin:0 0 18px;padding-left:34px}
+  .doc ol li{margin-bottom:9px}
+  .doc .signedby{margin:26px 0 0}
+  .doc .sigrow{display:grid;grid-template-columns:1fr 1fr;gap:34px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}
+  .doc .sigcell .signame{font-size:11pt}
+  @media print{
+    @page{size:A4;margin:20mm}
+    header,.wrap>.panel:first-child{display:none}
+    .wrap{display:block;padding:0}
+    #previewWrap{position:static}
+    #preview{border:none;border-radius:0;max-height:none;overflow:visible;padding:0}
+    .panel{border:none;padding:0}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Never Sold or Occupied Declaration</h1>
+  <a class="home" href="index.html">← all tools</a>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <button onclick="saveFile()">Save draft…</button>
+  <button onclick="openFile()">Open draft…</button>
+  <input type="file" id="fileInput" accept=".json" class="hide" onchange="handleFilePick(this)">
+  <select id="samplePick" onchange="loadSample(this.value); this.selectedIndex=0" title="Fill the form with example data">
+    <option value="">Load sample…</option>
+    <option value="company">Company vendor, two directors</option>
+    <option value="individuals">Individual vendors</option>
+    <option value="trust">Trust with corporate trustee</option>
+  </select>
+  <button onclick="resetAll()">Clear</button>
+  <button class="primary" onclick="downloadDocx()">Download .docx</button>
+  <button class="primary" onclick="downloadPdf()">Download .pdf</button>
+</header>
+
+<div class="wrap">
+  <!-- ============================== FORM ============================== -->
+  <div class="panel">
+    <fieldset>
+      <legend>Property</legend>
+      <div id="properties"></div>
+      <div class="addbar"><button class="mini" onclick="addProperty()">+ Add property / title</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Vendors</legend>
+      <div id="vendors"></div>
+      <div class="addbar" id="vendorsAdd"></div>
+      <div class="hint">Add as many parties as you need — they can be of different types. Whoever signs is
+        taken from the individuals, directors or trustees you enter here.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Confirmations</legend>
+      <div id="statements"></div>
+      <div class="addbar"><button class="mini" onclick="addStatement()">+ Add confirmation</button></div>
+      <div class="hint">Numbered automatically. Keep the "; and" at the end of all but the last one.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Document options</legend>
+      <label>Heading</label>
+      <input id="docTitle" value="TO WHOM IT MAY CONCERN" oninput="render()">
+      <label>Signing label</label>
+      <input id="signedBy" value="Signed by Vendors:" oninput="render()">
+      <label>Space above each signing line</label>
+      <select id="sigSpace" onchange="render()">
+        <option value="compact">Compact — fits the most on a page</option>
+        <option value="standard" selected>Standard</option>
+        <option value="generous">Generous — room for DocuSign fields</option>
+        <option value="wide">Wide — full signature box</option>
+      </select>
+      <label>Signature layout</label>
+      <select id="sigLayout" onchange="render()">
+        <option value="2">Two across the page</option>
+        <option value="1">One per line</option>
+      </select>
+    </fieldset>
+  </div>
+
+  <!-- ============================ PREVIEW ============================= -->
+  <div id="previewWrap">
+    <div class="panel">
+      <div class="status" style="margin-bottom:8px">Live preview</div>
+      <div id="preview" class="doc"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  State. Vendors are a list of "parties" that each pick their own
+ *  entity type, so any combination can be entered. This document names
+ *  no addresses, so parties carry none.
+ * ------------------------------------------------------------------ */
+const S = {vendors: [], properties: [], statements: []};
+
+const KINDS = {
+  individual:       'Individual',
+  company:          'Company',
+  trust_corporate:  'Trust — corporate trustee',
+  trust_individual: 'Trust — individual trustee(s)'
+};
+const ROLES = ['Director', 'Secretary', 'Director/Secretary', 'Sole Director'];
+const PH = {
+  name:'Given names and surname', company:'Company name Pty Ltd', trust:'Trust name',
+  acn:'000 000 000', abn:'00 000 000 000', volume:'0000', folio:'00',
+  addr:'Lot 0, 00 Street Name, Suburb STATE 0000'
+};
+const DEFAULT_STATEMENTS = [
+  'This is a Brand-new home, and this is the first completed sale of this home; and',
+  'This home has never previously been leased, sold or occupied.'
+];
+
+const uid  = () => Math.random().toString(36).slice(2, 9);
+const val  = id => (document.getElementById(id)?.value || '').trim();
+const esc  = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const find = (listName, id) => S[listName].find(x => x.id === id);
+
+function newParty(kind) {
+  return {id:uid(), kind, name:'', acn:'', abn:'', trustName:'',
+          officers: (kind === 'company' || kind === 'trust_corporate') ? [newOfficer()] : [],
+          trustees: kind === 'trust_individual' ? [newTrustee()] : []};
+}
+const newOfficer = () => ({id:uid(), name:'', role:'Director'});
+const newTrustee = () => ({id:uid(), name:''});
+
+/* ---- mutations ---- */
+function addParty(listName, kind)      { S[listName].push(newParty(kind)); renderAll(); }
+function removeParty(listName, id)     { S[listName] = S[listName].filter(x => x.id !== id); renderAll(); }
+function setParty(listName, id, f, v)  { const p = find(listName, id); if (p) { p[f] = v; render(); } }
+function addSub(listName, pid, key)    { find(listName, pid)[key].push(key === 'officers' ? newOfficer() : newTrustee()); renderAll(); }
+function removeSub(listName, pid, key, sid) {
+  const p = find(listName, pid);
+  p[key] = p[key].filter(x => x.id !== sid);
+  renderAll();
+}
+function setSub(listName, pid, key, sid, f, v) {
+  const s = find(listName, pid)[key].find(x => x.id === sid);
+  if (s) { s[f] = v; render(); }
+}
+function addProperty()          { S.properties.push({id:uid(), address:'', volume:'', folio:'', extent:'whole', portion:''}); renderAll(); }
+function removeProperty(id)     { S.properties = S.properties.filter(x => x.id !== id); renderAll(); }
+function setProperty(id, f, v)  { const p = find('properties', id); if (p) { p[f] = v; f === 'extent' ? renderAll() : render(); } }
+function addStatement(text = '') { S.statements.push({id:uid(), text}); renderAll(); }
+function removeStatement(id)    { S.statements = S.statements.filter(x => x.id !== id); renderAll(); }
+function setStatement(id, v)    { const s = find('statements', id); if (s) { s.text = v; render(); } }
+
+/* ------------------------------------------------------------------ *
+ *  Form rendering
+ * ------------------------------------------------------------------ */
+const addBar = listName => Object.entries(KINDS)
+  .map(([k, lbl]) => `<button class="mini" onclick="addParty('${listName}','${k}')">+ ${lbl}</button>`).join('');
+
+function officerRows(listName, p) {
+  return p.officers.map((o, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Officer ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','officers','${o.id}')">Remove</button></div>
+      <div class="row">
+        <div><label>Name</label>
+          <input value="${esc(o.name)}" placeholder="${PH.name}"
+                 oninput="setSub('${listName}','${p.id}','officers','${o.id}','name',this.value)"></div>
+        <div><label>Position</label>
+          <select onchange="setSub('${listName}','${p.id}','officers','${o.id}','role',this.value)">
+            ${ROLES.map(r => `<option ${o.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+          </select></div>
+      </div>
+    </div>`).join('');
+}
+
+function trusteeRows(listName, p) {
+  return p.trustees.map((t, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Trustee ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','trustees','${t.id}')">Remove</button></div>
+      <label>Name</label>
+      <input value="${esc(t.name)}" placeholder="${PH.name}"
+             oninput="setSub('${listName}','${p.id}','trustees','${t.id}','name',this.value)">
+    </div>`).join('');
+}
+
+function partyCard(listName, p, i) {
+  const head = `<div class="card-head">
+      <span>${i + 1}. ${KINDS[p.kind]}</span>
+      <button class="mini del" onclick="removeParty('${listName}','${p.id}')">Remove</button>
+    </div>`;
+  const set = f => `setParty('${listName}','${p.id}','${f}',this.value)`;
+
+  if (p.kind === 'individual') {
+    return `<div class="card">${head}
+      <label>Full name</label>
+      <input value="${esc(p.name)}" placeholder="${PH.name}" oninput="${set('name')}">
+    </div>`;
+  }
+
+  const companyBlock = label => `
+    <label>${label}</label>
+    <input value="${esc(p.name)}" placeholder="${PH.company}" oninput="${set('name')}">
+    <div class="row">
+      <div><label>ACN</label><input value="${esc(p.acn)}" placeholder="${PH.acn}" oninput="${set('acn')}"></div>
+      <div><label>ABN</label><input value="${esc(p.abn)}" placeholder="${PH.abn}" oninput="${set('abn')}"></div>
+    </div>
+    <label>Directors / secretaries (signing)</label>
+    ${officerRows(listName, p)}
+    <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','officers')">+ Add officer</button></div>`;
+
+  if (p.kind === 'company') return `<div class="card">${head}${companyBlock('Company name')}</div>`;
+
+  if (p.kind === 'trust_corporate') return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      ${companyBlock('Corporate trustee name')}
+    </div>`;
+
+  return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      <label>Trustees</label>
+      ${trusteeRows(listName, p)}
+      <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','trustees')">+ Add trustee</button></div>
+    </div>`;
+}
+
+function renderForm() {
+  document.getElementById('vendors').innerHTML = S.vendors.map((p, i) => partyCard('vendors', p, i)).join('');
+  document.getElementById('vendorsAdd').innerHTML = addBar('vendors');
+
+  document.getElementById('properties').innerHTML = S.properties.map((pr, i) => `
+    <div class="card">
+      <div class="card-head"><span>Property ${i + 1}</span>
+        <button class="mini del" onclick="removeProperty('${pr.id}')">Remove</button></div>
+      <label>Property address</label>
+      <textarea placeholder="${PH.addr}" oninput="setProperty('${pr.id}','address',this.value)">${esc(pr.address)}</textarea>
+      <div class="row">
+        <div><label>CT Volume</label><input value="${esc(pr.volume)}" placeholder="${PH.volume}" oninput="setProperty('${pr.id}','volume',this.value)"></div>
+        <div><label>CT Folio</label><input value="${esc(pr.folio)}" placeholder="${PH.folio}" oninput="setProperty('${pr.id}','folio',this.value)"></div>
+      </div>
+      <label>Extent</label>
+      <select onchange="setProperty('${pr.id}','extent',this.value)">
+        <option value="whole" ${pr.extent === 'whole' ? 'selected' : ''}>Whole of the land</option>
+        <option value="portion" ${pr.extent === 'portion' ? 'selected' : ''}>Portion of the land</option>
+      </select>
+      <div class="${pr.extent === 'portion' ? '' : 'hide'}">
+        <label>Portion description</label>
+        <input value="${esc(pr.portion)}" placeholder="Allotment 0 in Deposited Plan 00000"
+               oninput="setProperty('${pr.id}','portion',this.value)">
+      </div>
+    </div>`).join('');
+
+  document.getElementById('statements').innerHTML = S.statements.map((s, i) => `
+    <div class="card">
+      <div class="card-head"><span>Confirmation ${i + 1}</span>
+        <button class="mini del" onclick="removeStatement('${s.id}')">Remove</button></div>
+      <textarea oninput="setStatement('${s.id}',this.value)">${esc(s.text)}</textarea>
+    </div>`).join('');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Language helpers
+ * ------------------------------------------------------------------ */
+const BLANK = '_'.repeat(20);
+const clean = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
+const named = list => list.filter(x => x.name);
+
+function joinList(arr) {
+  const a = arr.filter(Boolean);
+  if (!a.length) return '';
+  if (a.length === 1) return a[0];
+  return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+}
+
+function companyName(p) {
+  let s = p.name || '';
+  const ids = [];
+  if (p.acn) ids.push('ACN: ' + p.acn);
+  if (p.abn) ids.push('ABN: ' + p.abn);
+  if (ids.length) s += ' (' + ids.join(', ') + ')';
+  return s;
+}
+
+/** Officer wording as it reads mid-sentence: "director of", "directors of". */
+function roleWords(officers) {
+  const list = named(officers);
+  if (list.length === 1) return (list[0].role || 'Director').toLowerCase();
+  return 'directors';
+}
+
+/** How a vendor party describes itself: "A and B, directors of X Pty Ltd (ACN: …)". */
+function partyClause(p) {
+  if (p.kind === 'individual') return p.name || '';
+  if (p.kind === 'trust_individual') {
+    const list = named(p.trustees);
+    return joinList(list.map(t => t.name)) + ', trustee' + (list.length > 1 ? 's' : '') +
+           ' of ' + (p.trustName || BLANK);
+  }
+  const who = joinList(named(p.officers).map(o => o.name));
+  const of = p.kind === 'trust_corporate'
+    ? companyName(p) + ' ATF ' + (p.trustName || BLANK)
+    : companyName(p);
+  return (who || BLANK) + ', ' + roleWords(p.officers) + ' of ' + of;
+}
+
+/** Consecutive individuals are named together rather than clause by clause. */
+function vendorsPhrase() {
+  const chunks = [];
+  let run = [];
+  const flush = () => { if (run.length) { chunks.push(joinList(run)); run = []; } };
+  S.vendors.forEach(p => {
+    if (p.kind === 'individual') { if (p.name) run.push(p.name); }
+    else { flush(); const c = partyClause(p); if (c) chunks.push(c); }
+  });
+  flush();
+  return joinList(chunks);
+}
+
+/** Who signs, and in what capacity. */
+function partySignatories(p) {
+  if (p.kind === 'individual')       return p.name ? [{name:p.name, role:''}] : [];
+  if (p.kind === 'trust_individual') return named(p.trustees).map(t => ({name:t.name, role:'Trustee'}));
+  return named(p.officers).map(o => ({name:o.name, role:o.role || 'Director'}));
+}
+const allSignatories = () => S.vendors.flatMap(partySignatories);
+
+const weOrI = n => (n > 1 ? 'We, ' : 'I, ');
+
+function propertyPhrase() {
+  return S.properties.filter(pr => pr.address || pr.volume || pr.folio).map(pr => {
+    const extent = pr.extent === 'portion'
+      ? (pr.portion ? 'portion of the land being ' + pr.portion : 'portion of the land')
+      : 'whole of the land';
+    const ct = (pr.volume || pr.folio)
+      ? ' in certificate of title volume ' + (pr.volume || '____') + ' folio ' + (pr.folio || '____')
+      : '';
+    return clean(pr.address) + ' being ' + extent + ct;
+  }).join('; and ');
+}
+
+/* Vertical room above each signing rule, for e-signature platforms. */
+const SIG_SPACE = {
+  compact:  {px: 20, twips: 300,  mm: 7},
+  standard: {px: 42, twips: 640,  mm: 13},
+  generous: {px: 68, twips: 1040, mm: 21},
+  wide:     {px: 96, twips: 1480, mm: 30}
+};
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
+const perRow   = () => (val('sigLayout') === '1' ? 1 : 2);
+
+/* ------------------------------------------------------------------ *
+ *  Document blocks — shared by the preview, the DOCX and the PDF
+ * ------------------------------------------------------------------ */
+function buildBlocks() {
+  const B = [];
+  const signers = allSignatories();
+  const vendorParties = S.vendors.filter(p => partyClause(p));
+
+  B.push({t:'title', text: val('docTitle')});
+  B.push({t:'p', text: 'Re: ' + (propertyPhrase() || BLANK)});
+  B.push({t:'p', text: weOrI(signers.length) + (vendorsPhrase() || BLANK) +
+                       ', as vendor' + (vendorParties.length > 1 ? 's' : '') + ' hereby confirm the following:'});
+  B.push({t:'list', items: S.statements.map(s => s.text).filter(t => t.trim())});
+  B.push({t:'signedby', text: val('signedBy')});
+
+  // signature blocks laid out in rows
+  const n = perRow();
+  for (let i = 0; i < signers.length; i += n) B.push({t:'sigrow', cells: signers.slice(i, i + n)});
+  if (!signers.length) B.push({t:'sigrow', cells: [{name:'', role:''}]});
+
+  return B;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Preview
+ * ------------------------------------------------------------------ */
+function docHtml() {
+  const gap = sigSpace().px;
+  const cols = perRow();
+  return buildBlocks().map(b => {
+    if (b.t === 'title')    return '<h2>' + esc(b.text) + '</h2>';
+    if (b.t === 'signedby') return '<p class="signedby">' + esc(b.text) + '</p>';
+    if (b.t === 'list')     return b.items.length
+      ? '<ol>' + b.items.map(i => '<li>' + esc(i) + '</li>').join('') + '</ol>' : '';
+    if (b.t === 'sigrow') {
+      const cells = b.cells.map(c => `<div class="sigcell">
+          <div class="sigline"></div>
+          <div class="signame">${esc(c.name || BLANK)}${c.role ? ' (' + esc(c.role) + ')' : ''}</div>
+        </div>`).join('');
+      return `<div class="sigrow" style="margin-top:${gap}px;grid-template-columns:repeat(${cols},1fr)">${cells}</div>`;
+    }
+    return '<p>' + esc(b.text) + '</p>';
+  }).join('');
+}
+
+function renderPreview() { document.getElementById('preview').innerHTML = docHtml(); }
+function render()    { renderPreview(); }
+function renderAll() { renderForm(); render(); }
+
+/* ------------------------------------------------------------------ *
+ *  DOCX
+ * ------------------------------------------------------------------ */
+const TEXT_WIDTH = 11906 - 1134 * 2;          // A4 less 20 mm margins
+
+function downloadDocx() {
+  const doc = buildDocxDoc();
+  if (!doc) { fallbackDoc(); return; }
+  docx.Packer.toBlob(doc).then(blob => save(blob, fileName() + '.docx'))
+    .catch(e => { console.error(e); fallbackDoc(); });
+}
+
+function buildDocxDoc() {
+  if (typeof docx === 'undefined') return null;
+  const {Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType} = docx;
+  const NONE = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+  const noBorders = {top:NONE, bottom:NONE, left:NONE, right:NONE, insideHorizontal:NONE, insideVertical:NONE};
+  const children = [];
+
+  buildBlocks().forEach(b => {
+    if (b.t === 'title') {
+      children.push(new Paragraph({spacing:{after:360}, children:[new TextRun(b.text)]}));
+      return;
+    }
+    if (b.t === 'list') {
+      b.items.forEach((item, i) => children.push(new Paragraph({
+        spacing:{after:180, line:276},
+        indent:{left:720, hanging:360},
+        children:[new TextRun((i + 1) + '.\t' + item)]
+      })));
+      return;
+    }
+    if (b.t === 'signedby') {
+      children.push(new Paragraph({spacing:{before:360, after:60}, children:[new TextRun(b.text)]}));
+      return;
+    }
+    if (b.t === 'sigrow') {
+      const cols = perRow();
+      const width = Math.floor(TEXT_WIDTH / cols);
+      const cells = b.cells.map(c => new TableCell({
+        width:{size:width, type:WidthType.DXA},
+        margins:{right: cols > 1 ? 340 : 0},
+        borders:noBorders,
+        children:[
+          // the rule is the cell paragraph's bottom border
+          new Paragraph({spacing:{before: sigSpace().twips, after:40},
+                         border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
+                         children:[new TextRun('')]}),
+          new Paragraph({spacing:{after:120},
+                         children:[new TextRun((c.name || BLANK) + (c.role ? ' (' + c.role + ')' : ''))]})
+        ]
+      }));
+      while (cells.length < cols) cells.push(new TableCell({borders:noBorders, children:[new Paragraph('')]}));
+      children.push(new Table({width:{size:TEXT_WIDTH, type:WidthType.DXA}, borders:noBorders,
+                               rows:[new TableRow({children:cells})]}));
+      return;
+    }
+    children.push(new Paragraph({spacing:{after:240, line:276},
+                                 alignment:AlignmentType.LEFT,
+                                 children:[new TextRun(b.text)]}));
+  });
+
+  return new Document({
+    styles:{default:{document:{run:{font:'Arial', size:22}}}},
+    sections:[{properties:{
+      page:{size:{width:11906, height:16838},
+            margin:{top:1134, bottom:1134, left:1134, right:1134}}
+    }, children}]
+  });
+}
+
+function fallbackDoc() {
+  const html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
+    '<style>' + DOC_CSS + '</style></head><body><div class="doc">' + docHtml() + '</div></body></html>';
+  save(new Blob(['﻿' + html], {type:'application/msword'}), fileName() + '.doc');
+  setStatus('docx library unavailable — exported .doc instead');
+}
+
+const DOC_CSS = `@page{size:A4;margin:20mm}
+.doc{font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.4;color:#000;background:#fff}
+.doc h2{font-size:11pt;font-weight:400;margin:0 0 22px}
+.doc p{margin:0 0 14px}
+.doc ol{margin:0 0 18px;padding-left:34px}
+.doc ol li{margin-bottom:9px}
+.doc .sigrow{display:grid;gap:34px;page-break-inside:avoid}
+.doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}`;
+
+/* ------------------------------------------------------------------ *
+ *  PDF — laid out directly with jsPDF so the text stays selectable.
+ * ------------------------------------------------------------------ */
+function downloadPdf() {
+  const d = buildPdfDoc();
+  if (!d) { window.print(); return; }
+  d.save(fileName() + '.pdf');
+}
+
+function buildPdfDoc() {
+  const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFCtor) return null;
+
+  // Built-in PDF fonts are WinAnsi only — fold typography down to ASCII.
+  const ascii = s => String(s).replace(/[–—]/g, '-').replace(/[‘’‚]/g, "'")
+                              .replace(/[“”„]/g, '"').replace(/…/g, '...').replace(/ /g, ' ');
+
+  const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
+  const M = 20, W = 210 - M * 2, BOTTOM = 297 - M, LH = 5.3;
+  let y = M;
+  d.setFont('helvetica', 'normal').setFontSize(11);
+  const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
+
+  const writeLines = (text, x = M, width = W) => {
+    d.splitTextToSize(ascii(text), width).forEach(ln => { need(LH); d.text(ln, x, y); y += LH; });
+  };
+
+  buildBlocks().forEach(b => {
+    if (b.t === 'title')    { writeLines(b.text); y += 6; return; }
+    if (b.t === 'signedby') { y += 6; writeLines(b.text); y += 1; return; }
+    if (b.t === 'list') {
+      b.items.forEach((item, i) => {
+        const label = (i + 1) + '.';
+        const indent = 8;
+        const lines = d.splitTextToSize(ascii(item), W - indent);
+        lines.forEach((ln, j) => {
+          need(LH);
+          if (j === 0) d.text(label, M + 2, y);
+          d.text(ln, M + indent, y);
+          y += LH;
+        });
+        y += 2.5;
+      });
+      y += 2;
+      return;
+    }
+    if (b.t === 'sigrow') {
+      const cols = perRow();
+      const colW = W / cols;
+      const ruleW = colW - (cols > 1 ? 12 : 0);
+      need(sigSpace().mm + 12);
+      y += sigSpace().mm;
+      d.setLineWidth(0.3);
+      b.cells.forEach((c, i) => d.line(M + i * colW, y, M + i * colW + ruleW, y));
+      y += 4.4;
+      b.cells.forEach((c, i) =>
+        d.text(ascii((c.name || BLANK) + (c.role ? ' (' + c.role + ')' : '')), M + i * colW, y));
+      y += LH + 2;
+      return;
+    }
+    writeLines(b.text);
+    y += 3;
+  });
+
+  return d;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Files
+ * ------------------------------------------------------------------ */
+const fileName = () => 'Declaration';
+
+function save(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+let statusTimer;
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { el.textContent = ''; el.classList.remove('error'); }, isError ? 12000 : 4000);
+}
+
+const SIMPLE = ['docTitle', 'signedBy', 'sigSpace', 'sigLayout'];
+const FIELD_DEFAULTS = {docTitle:'TO WHOM IT MAY CONCERN', signedBy:'Signed by Vendors:',
+                        sigSpace:'standard', sigLayout:'2'};
+const setFields = f => SIMPLE.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
+});
+const snapshot = () => {
+  const fields = {};
+  SIMPLE.forEach(id => fields[id] = val(id));
+  return {tool: 'never-sold', version: 1, fields, lists: S};
+};
+
+function applyDraft(d) {
+  setFields(d.fields || {});
+  const l = d.lists || {};
+  Object.keys(S).forEach(k => S[k] = l[k] || []);
+  renderAll();
+}
+
+/* Only a failure of the picker itself falls back to the <input> dialog —
+   read and parse failures are reported instead of silently re-prompting. */
+async function saveFile() {
+  const json = JSON.stringify(snapshot(), null, 2);
+  const name = fileName() + '.json';
+  const toDownloads = () => {
+    save(new Blob([json], {type:'application/json'}), name);
+    setStatus('Saved to your Downloads folder');
+  };
+  if (!window.showSaveFilePicker) { toDownloads(); return; }
+
+  let handle;
+  try {
+    handle = await showSaveFilePicker({suggestedName:name,
+      types:[{description:'Declaration draft', accept:{'application/json':['.json']}}]});
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    console.warn('File picker unavailable, falling back to download', e);
+    toDownloads();
+    return;
+  }
+  try {
+    const w = await handle.createWritable();
+    await w.write(json);
+    await w.close();
+    setStatus('Saved to ' + handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not write ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+async function openFile() {
+  if (!window.showOpenFilePicker) { document.getElementById('fileInput').click(); return; }
+  let handle;
+  try {
+    [handle] = await showOpenFilePicker({
+      types:[{description:'Declaration draft', accept:{'application/json':['.json']}}]});
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    console.warn('File picker unavailable, falling back to file input', e);
+    document.getElementById('fileInput').click();
+    return;
+  }
+  try {
+    loadDraftText(await (await handle.getFile()).text(), handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+function handleFilePick(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  const r = new FileReader();
+  r.onload  = () => loadDraftText(r.result, file.name);
+  r.onerror = () => setStatus('Could not read ' + file.name +
+                             ' — if it is stored in OneDrive, open it once to download it locally', true);
+  r.readAsText(file);
+}
+
+function loadDraftText(text, name) {
+  let d;
+  try { d = JSON.parse(text); }
+  catch { setStatus(name + ' is not a valid draft file (not JSON)', true); return; }
+  if (!d || typeof d !== 'object' || (!d.lists && !d.fields)) {
+    setStatus(name + ' does not look like a declaration draft — nothing was changed', true);
+    return;
+  }
+  if (d.tool && d.tool !== 'never-sold') {
+    setStatus(name + ' is a draft for another tool — nothing was changed', true);
+    return;
+  }
+  try { applyDraft(d); setStatus('Loaded ' + name); }
+  catch (e) { console.error(e); setStatus('Could not load ' + name + ' — ' + (e.message || e.name), true); }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Sample data — fictional parties, for trying the tool out.
+ * ------------------------------------------------------------------ */
+const party    = (kind, o = {}) => Object.assign(newParty(kind), o);
+const officer  = (name, role = 'Director') => ({id:uid(), name, role});
+const trustee  = name => ({id:uid(), name});
+const property = o => Object.assign({id:uid(), address:'', volume:'', folio:'', extent:'whole', portion:''}, o);
+const statements = () => DEFAULT_STATEMENTS.map(t => ({id:uid(), text:t}));
+
+const SAMPLES = {
+  company: {
+    label: 'Company vendor, two directors',
+    properties: [property({address:'Lot 2, 29 Arthur Street Ridgehaven SA 5097', volume:'6331', folio:'475'})],
+    vendors: [party('company', {name:'DTS15 PROJECTS PTY LTD', acn:'123 132 123',
+                                officers:[officer('Vikas Bansal'), officer('Shabnam Jindal')]})]
+  },
+  individuals: {
+    label: 'Individual vendors',
+    properties: [property({address:'14 Rosewood Drive, Golden Grove SA 5125', volume:'6042', folio:'118'})],
+    vendors: [party('individual', {name:'Nathan James Ellery'}),
+              party('individual', {name:'Claire Louise Ellery'})]
+  },
+  trust: {
+    label: 'Trust with corporate trustee',
+    properties: [property({address:'Lot 7, 4 Sturt Avenue, Mawson Lakes SA 5095', volume:'5988', folio:'203',
+                           extent:'portion', portion:'Allotment 7 in Deposited Plan 128844'})],
+    vendors: [party('trust_corporate', {name:'Sturt Avenue Developments Pty Ltd', acn:'644 217 908',
+                                        trustName:'Sturt Avenue Unit Trust',
+                                        officers:[officer('Priya Raman', 'Sole Director')]})]
+  }
+};
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  if (!s) return;
+  setFields({sigSpace: val('sigSpace'), sigLayout: val('sigLayout')});
+  S.properties = JSON.parse(JSON.stringify(s.properties));
+  S.vendors    = JSON.parse(JSON.stringify(s.vendors));
+  S.statements = statements();
+  renderAll();
+  setStatus('Loaded sample: ' + s.label);
+}
+
+function resetAll() {
+  Object.keys(S).forEach(k => S[k] = []);
+  setFields({sigSpace: val('sigSpace'), sigLayout: val('sigLayout')});
+  seed();
+}
+
+function seed() {
+  addProperty();
+  S.vendors.push(newParty('company'));
+  S.statements = statements();
+}
+
+seed();
+renderAll();
+</script>
+</body>
+</html>

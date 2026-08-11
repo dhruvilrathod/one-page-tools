@@ -8,6 +8,7 @@ server and no database — open it and it works.
 | Tool | What it does |
 |---|---|
 | [Nomination Document Builder](nomination-tool.html) | Prepares a direction to transfer land to a nominee, and exports it as a formatted `.docx` or `.pdf` with signing blocks. |
+| [Never Sold or Occupied Declaration](never-sold-tool.html) | Prepares the vendor's confirmation that a home is brand new and has never been leased, sold or occupied. |
 
 ## Using them
 
@@ -52,6 +53,26 @@ Keep each tool to one file so it can be shared, emailed or saved on its own.
   platforms such as DocuSign.
 - **Samples** — the *Load sample…* menu fills the form with fictional data covering the common
   structures, useful for checking how a structure reads before entering a real matter.
+
+## Never Sold or Occupied Declaration — notes
+
+- **Vendors** use the same party model as the nomination tool: a list where each party is an
+  individual, a company, or a trust with a corporate or individual trustee. This document names no
+  addresses, so parties carry none.
+- **Confirmations** are an editable numbered list, defaulting to the brand-new-home and
+  never-leased-or-occupied wording.
+- **Signatures** print two across the page by default, or one per line, with the position in
+  brackets under each rule.
+
+## Shared conventions
+
+Both tools follow the same rules, so anything you learn in one carries over:
+
+- A4, Arial 11pt, in the `.docx` and the `.pdf` alike; the PDF is real text, not an image.
+- Adjustable signing space for e-signature platforms.
+- Drafts save as `.json` to a folder you pick; a draft only loads into the tool that wrote it.
+- Downloads are named plainly (`Nomination`, `Declaration`) with no client details in the filename.
+- Blank fields print as a rule rather than sample text, so an incomplete draft still previews.
 
 The generated wording is a starting point, not legal advice — always review a document before it
 goes out.
