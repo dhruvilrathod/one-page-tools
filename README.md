@@ -66,17 +66,25 @@ Keep each tool to one file so it can be shared, emailed or saved on its own.
 
 ## Letterhead
 
-Both tools have a **Print on Acquire Conveyancing letterhead** toggle under Document options, off
-by default. When it is on, the document gets the logo and contact block as a first-page header and
-a running footer with the company name, ABN, postal address and page numbers — matching
-`Acquire Conveyancing Letter Head 1.1`. Top and bottom margins widen to make room. The setting is
-saved with the draft.
+Both tools have a **Print on letterhead** toggle under Document options, off by default, so only
+the documents that should carry branding get it. Next to it, **Upload .docx…** takes your firm's
+existing Word letterhead.
 
-The logo is embedded in each tool as a data URI, so the tools remain single files that work
-offline. Note that this repo is public, which means the logo and the contact details in it are
-publicly readable — that was a deliberate choice for convenience. If that ever becomes a concern,
-make the repo private (Pages will stop serving the shared link on a free plan) or replace the
-`LETTERHEAD` block in each tool with one that loads the logo from the user's own machine.
+What happens to it:
+
+- **Word download** — the letterhead file itself becomes the container: the generated body is
+  poured into it, keeping its `sectPr`, so the headers, footers, page numbers, margins, fonts and
+  images are genuinely the firm's own, not a reconstruction.
+- **Preview and PDF** — these cannot host a Word header, so they reproduce the logo and the header
+  and footer text extracted from the same file. Expect a close approximation, not a pixel match.
+
+The letterhead is kept in the browser's local storage under one key shared by both tools, so it is
+uploaded once per machine and never leaves it. No branding is stored in this repo. **Remove**
+clears it. The oversized logos letterheads often carry are downscaled to 900px on upload, which
+keeps storage and every generated PDF small.
+
+If a letterhead does not parse, the tools say why rather than failing silently; a letterhead with
+no header images still works, using its text alone.
 
 ## Shared conventions
 
