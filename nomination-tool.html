@@ -68,6 +68,8 @@
   .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
   .doc .signame{font-weight:700}
   .doc .sigrole{font-style:italic}
+  .doc .sigdate{margin-top:9px}
+  .doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}
   .doc p.resume{margin-top:22px}
   .doc .execution{letter-spacing:.4px;font-weight:700;margin-top:14px}
   @media print{
@@ -173,6 +175,8 @@
         <option value="generous">Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
+      <label class="check"><input type="checkbox" id="sigDate" onchange="render()">
+        <span>Add a date line under each signature</span></label>
       <div class="hint">Signature blocks are generated from the purchasers (direction) and the nominees (acceptance).</div>
     </fieldset>
   </div>
@@ -589,6 +593,9 @@ const SIG_SPACE = {
   wide:     {px: 96, twips: 1480, mm: 30}
 };
 const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
+/* Optional "Date: ______" rule beneath each signature, for signatories who
+   date their own signing rather than relying on a single execution date. */
+const sigDated = () => !!document.getElementById('sigDate')?.checked;
 const clean = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
 const filled = list => list.filter(x => x.name || x.address);
 
@@ -775,6 +782,7 @@ function docHtml() {
         <div class="sigline"></div>
         <div class="signame">${esc(b.name || BLANK)}</div>
         ${b.role ? '<div class="sigrole">(' + esc(b.role) + ')</div>' : ''}
+        ${sigDated() ? '<div class="sigdate">Date:&nbsp;<span class="sigdateline"></span></div>' : ''}
       </div>`;
     }
     const cls = [b.cls === 'exec' ? 'plain execution' : (b.cls === 'plain' ? 'plain' : ''),
@@ -891,7 +899,16 @@ function buildDocxDoc() {
         children:[new TextRun({text:''})]
       }));
       children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:b.name || BLANK, bold:true})]}));
-      if (b.role) children.push(new Paragraph({spacing:{after:120}, children:[new TextRun({text:'(' + b.role + ')', italics:true})]}));
+      if (b.role) children.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120}, children:[new TextRun({text:'(' + b.role + ')', italics:true})]}));
+      if (sigDated()) {
+        // Underlined non-breaking spaces, so the rule stays put when the
+        // document is edited in Word.
+        children.push(new Paragraph({
+          spacing:{before:120, after:120},
+          children:[new TextRun({text:'Date:\u00A0'}),
+                    new TextRun({text:'\u00A0'.repeat(34), underline:{}})]
+        }));
+      }
       afterSig = true;
       return;
     }
@@ -933,6 +950,8 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
 .doc .signame{font-weight:700}
 .doc .sigrole{font-style:italic}
+.doc .sigdate{margin-top:9px}
+.doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}
 .doc p.resume{margin-top:22px}
 .doc .execution{font-weight:700}`;
 
@@ -957,7 +976,7 @@ function buildPdfDoc() {
     .replace(/[‘’‚]/g, "'")
     .replace(/[“”„]/g, '"')
     .replace(/…/g, '...')
-    .replace(/ /g, ' ');
+    .replace(/\u00A0/g, ' ');
 
   const lh = onLetterhead();
   const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
@@ -1015,7 +1034,7 @@ function buildPdfDoc() {
     }
     if (b.t === 'sig') {
       const gap = sigSpace().mm;
-      need(gap + 13);
+      need(gap + 13 + (sigDated() ? LINE + 3 : 0));
       y += gap;
       d.setLineWidth(0.3);
       d.line(M, y, M + W * 0.62, y);
@@ -1029,6 +1048,14 @@ function buildPdfDoc() {
         y += LINE;
       }
       d.setFont('helvetica', 'normal');
+      if (sigDated()) {
+        y += 3;
+        d.text('Date:', M, y);
+        const x = M + d.getTextWidth('Date:') + 2;
+        d.setLineWidth(0.3);
+        d.line(x, y + 0.6, M + W * 0.42, y + 0.6);
+        y += LINE;
+      }
       afterSig = true;
       return;
     }
@@ -1083,6 +1110,7 @@ const snapshot = () => {
   const fields = {};
   SIMPLE.forEach(id => fields[id] = val(id));
   fields.useLetterhead = !!onLetterhead();
+  fields.sigDate = sigDated();
   return {tool: 'nomination', version: 2, fields, lists: S};
 };
 
@@ -1095,6 +1123,7 @@ const setFields = f => SIMPLE.forEach(id => {
 function applyDraft(d) {
   setFields(d.fields || {});
   document.getElementById('useLetterhead').checked = !!(d.fields || {}).useLetterhead;
+  document.getElementById('sigDate').checked = !!(d.fields || {}).sigDate;
   const lists = migrate(d);
   Object.keys(S).forEach(k => S[k] = lists[k] || []);
   renderAll();
