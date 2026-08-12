@@ -175,7 +175,7 @@
         <option value="generous" selected>Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
-      <label class="check"><input type="checkbox" id="sigDate" onchange="render()">
+      <label class="check"><input type="checkbox" id="sigDate" checked onchange="render()">
         <span>Add a date line under each signature</span></label>
       <div class="hint">Signature blocks are generated from the purchasers (direction) and the nominees (acceptance).</div>
     </fieldset>
@@ -1123,7 +1123,8 @@ const setFields = f => SIMPLE.forEach(id => {
 function applyDraft(d) {
   setFields(d.fields || {});
   document.getElementById('useLetterhead').checked = !!(d.fields || {}).useLetterhead;
-  document.getElementById('sigDate').checked = !!(d.fields || {}).sigDate;
+  // Drafts predating the date line have no setting; give them the default.
+  document.getElementById('sigDate').checked = (d.fields || {}).sigDate !== false;
   const lists = migrate(d);
   Object.keys(S).forEach(k => S[k] = lists[k] || []);
   renderAll();
