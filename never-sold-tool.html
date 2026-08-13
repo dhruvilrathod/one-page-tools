@@ -66,6 +66,8 @@
   .doc .sigrow{display:grid;grid-template-columns:1fr 1fr;gap:34px;page-break-inside:avoid;break-inside:avoid}
   .doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}
   .doc .sigcell .signame{font-size:11pt}
+  .doc .sigcell .sigdate{margin-top:9px;font-size:11pt}
+  .doc .sigcell .sigdateline{display:inline-block;width:70%;border-bottom:1px solid #000}
   @media print{
     @page{size:A4;margin:20mm}
     header,.wrap>.panel:first-child{display:none}
@@ -140,8 +142,8 @@
       <label>Space above each signing line</label>
       <select id="sigSpace" onchange="render()">
         <option value="compact">Compact — fits the most on a page</option>
-        <option value="standard" selected>Standard</option>
-        <option value="generous">Generous — room for DocuSign fields</option>
+        <option value="standard">Standard</option>
+        <option value="generous" selected>Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
       <label>Signature layout</label>
@@ -149,6 +151,8 @@
         <option value="2">Two across the page</option>
         <option value="1">One per line</option>
       </select>
+      <label class="check"><input type="checkbox" id="sigDate" checked onchange="render()">
+        <span>Add a date line under each signature</span></label>
     </fieldset>
   </div>
 
@@ -583,7 +587,10 @@ const SIG_SPACE = {
   generous: {px: 68, twips: 1040, mm: 21},
   wide:     {px: 96, twips: 1480, mm: 30}
 };
-const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
+/* Optional "Date: ______" rule beneath each signature, for signatories who
+   date their own signing rather than relying on a single execution date. */
+const sigDated = () => !!document.getElementById('sigDate')?.checked;
 const perRow   = () => (val('sigLayout') === '1' ? 1 : 2);
 
 /* ------------------------------------------------------------------ *
@@ -633,6 +640,7 @@ function docHtml() {
       const cells = b.cells.map(c => `<div class="sigcell">
           <div class="sigline"></div>
           <div class="signame">${esc(c.name || BLANK)}${c.role ? ' (' + esc(c.role) + ')' : ''}</div>
+          ${sigDated() ? '<div class="sigdate">Date:&nbsp;<span class="sigdateline"></span></div>' : ''}
         </div>`).join('');
       return `<div class="sigrow" style="margin-top:${gap}px;grid-template-columns:repeat(${cols},1fr)">${cells}</div>`;
     }
@@ -757,8 +765,13 @@ function buildDocxDoc() {
           new Paragraph({spacing:{before: sigSpace().twips, after:40},
                          border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
                          children:[new TextRun('')]}),
-          new Paragraph({spacing:{after:120},
-                         children:[new TextRun((c.name || BLANK) + (c.role ? ' (' + c.role + ')' : ''))]})
+          new Paragraph({spacing:{after: sigDated() ? 0 : 120},
+                         children:[new TextRun((c.name || BLANK) + (c.role ? ' (' + c.role + ')' : ''))]}),
+          // Underlined non-breaking spaces, so the rule stays put when the
+          // document is edited in Word. Shorter where two share a row.
+          ...(sigDated() ? [new Paragraph({spacing:{before:120, after:120},
+                children:[new TextRun('Date:\u00A0'),
+                          new TextRun({text:'\u00A0'.repeat(cols > 1 ? 16 : 34), underline:{}})]})] : [])
         ]
       }));
       while (cells.length < cols) cells.push(new TableCell({borders:noBorders, children:[new Paragraph('')]}));
@@ -796,7 +809,9 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc ol{margin:0 0 18px;padding-left:34px}
 .doc ol li{margin-bottom:9px}
 .doc .sigrow{display:grid;gap:34px;page-break-inside:avoid}
-.doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}`;
+.doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}
+.doc .sigcell .sigdate{margin-top:9px}
+.doc .sigcell .sigdateline{display:inline-block;width:70%;border-bottom:1px solid #000}`;
 
 /* ------------------------------------------------------------------ *
  *  PDF — laid out directly with jsPDF so the text stays selectable.
@@ -874,7 +889,7 @@ function buildPdfDoc() {
       const cols = perRow();
       const colW = W / cols;
       const ruleW = colW - (cols > 1 ? 12 : 0);
-      need(sigSpace().mm + 12);
+      need(sigSpace().mm + 12 + (sigDated() ? LINE + 3 : 0));
       y += sigSpace().mm;
       d.setLineWidth(0.3);
       b.cells.forEach((c, i) => d.line(M + i * colW, y, M + i * colW + ruleW, y));
@@ -882,6 +897,16 @@ function buildPdfDoc() {
       b.cells.forEach((c, i) =>
         d.text(ascii((c.name || BLANK) + (c.role ? ' (' + c.role + ')' : '')), M + i * colW, y));
       y += LINE + 2;
+      if (sigDated()) {
+        y += 1;
+        const label = 'Date:';
+        b.cells.forEach((c, i) => {
+          const x = M + i * colW;
+          d.text(label, x, y);
+          d.line(x + d.getTextWidth(label) + 2, y + 0.6, x + ruleW * 0.7, y + 0.6);
+        });
+        y += LINE;
+      }
       return;
     }
     writeLines(b.text);
@@ -964,7 +989,7 @@ function setStatus(msg, isError = false) {
 
 const SIMPLE = ['docTitle', 'signedBy', 'sigSpace', 'sigLayout'];
 const FIELD_DEFAULTS = {docTitle:'TO WHOM IT MAY CONCERN', signedBy:'Signed by Vendors:',
-                        sigSpace:'standard', sigLayout:'2'};
+                        sigSpace:'generous', sigLayout:'2'};
 const setFields = f => SIMPLE.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
@@ -973,12 +998,15 @@ const snapshot = () => {
   const fields = {};
   SIMPLE.forEach(id => fields[id] = val(id));
   fields.useLetterhead = !!onLetterhead();
+  fields.sigDate = sigDated();
   return {tool: 'never-sold', version: 1, fields, lists: S};
 };
 
 function applyDraft(d) {
   setFields(d.fields || {});
   document.getElementById('useLetterhead').checked = !!(d.fields || {}).useLetterhead;
+  // Drafts predating the date line have no setting; give them the default.
+  document.getElementById('sigDate').checked = (d.fields || {}).sigDate !== false;
   const l = d.lists || {};
   Object.keys(S).forEach(k => S[k] = l[k] || []);
   renderAll();
