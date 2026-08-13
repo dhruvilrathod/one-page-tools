@@ -823,6 +823,12 @@ function renderAll() { renderForm(); render(); }
 const TEXT_WIDTH = 11906 - 1134 * 2;
 
 async function downloadDocx() {
+  if (typeof docx === 'undefined') { fallbackDoc(); return; }
+  // Ask where to save before building the document, so the dialog opens
+  // while the click is still counted as a user gesture.
+  const target = await pickTarget(fileName() + '.docx');
+  if (target === CANCELLED) return;
+
   const doc = buildDocxDoc();
   if (!doc) { fallbackDoc(); return; }
   let blob;
@@ -839,7 +845,7 @@ async function downloadDocx() {
                 (e.message || e.name) + '. Saved without it.', true);
     }
   }
-  save(blob, fileName() + '.docx');
+  save(blob, fileName() + '.docx', target);
 }
 
 /** Put the generated body inside the user's letterhead document, so the
@@ -938,7 +944,7 @@ function fallbackDoc() {
   const html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
     '<style>' + DOC_CSS + '</style></head><body><div class="doc">' + docHtml() + '</div></body></html>';
   save(new Blob(['﻿' + html], {type:'application/msword'}), fileName() + '.doc');
-  setStatus('docx library unavailable — exported .doc instead');
+  setStatus('docx library unavailable — exported .doc to your Downloads folder instead');
 }
 
 const DOC_CSS = `@page{size:A4;margin:20mm}
@@ -959,10 +965,14 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
  *  PDF — laid out directly with jsPDF so the text stays selectable and
  *  the typography matches the DOCX (Times New Roman 12pt, 1" margins).
  * ------------------------------------------------------------------ */
-function downloadPdf() {
+async function downloadPdf() {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { window.print(); return; }
+  const target = await pickTarget(fileName() + '.pdf');   // dialog first, as for the DOCX
+  if (target === CANCELLED) return;
+
   const d = buildPdfDoc();
   if (!d) { window.print(); return; }
-  d.save(fileName() + '.pdf');
+  save(d.output('blob'), fileName() + '.pdf', target);
 }
 
 function buildPdfDoc() {
@@ -1088,12 +1098,48 @@ function buildPdfDoc() {
  * ------------------------------------------------------------------ */
 /* Downloads are named plainly — no client details in the filename. */
 const fileName = () => 'Nomination';
-function save(blob, name) {
+
+/* Chrome and Edge can show the system Save dialog, so the user chooses the
+   folder and the name; other browsers can only drop the file in the
+   downloads folder. The dialog has to be opened while the click that asked
+   for it is still fresh, so callers pick the destination first and build
+   the document afterwards. */
+const CANCELLED = Symbol('cancelled');
+const FILE_TYPES = {
+  docx: {description:'Word document', accept:{'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx']}},
+  doc:  {description:'Word document', accept:{'application/msword':['.doc']}},
+  pdf:  {description:'PDF document',  accept:{'application/pdf':['.pdf']}},
+  json: {description:'Nomination draft', accept:{'application/json':['.json']}}
+};
+async function pickTarget(name) {
+  if (!window.showSaveFilePicker) return null;         // no dialog in this browser
+  const type = FILE_TYPES[name.split('.').pop().toLowerCase()];
+  try {
+    return await showSaveFilePicker({suggestedName: name, types: type ? [type] : []});
+  } catch (e) {
+    if (e.name === 'AbortError') return CANCELLED;     // user closed the dialog
+    console.warn('File picker unavailable, falling back to download', e);
+    return null;
+  }
+}
+
+/** Write to the chosen file, or fall back to the downloads folder.
+    Returns the name written to, or null when it went to downloads. */
+async function save(data, name, target) {
+  if (target && target !== CANCELLED) {
+    try {
+      const w = await target.createWritable();
+      await w.write(data);
+      await w.close();
+      return target.name;
+    } catch (e) { console.error(e); }                  // fall through to a plain download
+  }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return null;
 }
 let statusTimer;
 function setStatus(msg, isError = false) {
@@ -1164,36 +1210,12 @@ function migrate(d) {
 /* Save to a folder the user picks. Uses the File System Access API where
    available (Chrome/Edge), otherwise falls back to the downloads folder. */
 async function saveFile() {
-  const json = JSON.stringify(snapshot(), null, 2);
   const name = fileName() + '.json';
-  const toDownloads = () => {
-    save(new Blob([json], {type:'application/json'}), name);
-    setStatus('Saved to your Downloads folder');
-  };
-  if (!window.showSaveFilePicker) { toDownloads(); return; }
-
-  let handle;
-  try {
-    handle = await showSaveFilePicker({
-      suggestedName: name,
-      types: [{description:'Nomination draft', accept:{'application/json':['.json']}}]
-    });
-  } catch (e) {
-    if (e.name === 'AbortError') return;            // user cancelled
-    console.warn('File picker unavailable, falling back to download', e);
-    toDownloads();
-    return;
-  }
-
-  try {
-    const w = await handle.createWritable();
-    await w.write(json);
-    await w.close();
-    setStatus('Saved to ' + handle.name);
-  } catch (e) {
-    console.error(e);
-    setStatus('Could not write ' + handle.name + ' — ' + (e.message || e.name), true);
-  }
+  const target = await pickTarget(name);
+  if (target === CANCELLED) return;
+  const json = JSON.stringify(snapshot(), null, 2);
+  const where = await save(new Blob([json], {type:'application/json'}), name, target);
+  setStatus(where ? 'Saved to ' + where : 'Saved to your Downloads folder');
 }
 
 async function openFile() {
