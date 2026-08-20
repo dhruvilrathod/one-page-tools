@@ -142,8 +142,8 @@
       <label>Space above each signing line</label>
       <select id="sigSpace" onchange="render()">
         <option value="compact">Compact — fits the most on a page</option>
-        <option value="standard">Standard</option>
-        <option value="generous" selected>Generous — room for DocuSign fields</option>
+        <option value="standard" selected>Standard</option>
+        <option value="generous">Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
       <label>Signature layout</label>
@@ -587,7 +587,7 @@ const SIG_SPACE = {
   generous: {px: 68, twips: 1040, mm: 21},
   wide:     {px: 96, twips: 1480, mm: 30}
 };
-const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
 /* Optional "Date: ______" rule beneath each signature, for signatories who
    date their own signing rather than relying on a single execution date. */
 const sigDated = () => !!document.getElementById('sigDate')?.checked;
@@ -989,7 +989,7 @@ function setStatus(msg, isError = false) {
 
 const SIMPLE = ['docTitle', 'signedBy', 'sigSpace', 'sigLayout'];
 const FIELD_DEFAULTS = {docTitle:'TO WHOM IT MAY CONCERN', signedBy:'Signed by Vendors:',
-                        sigSpace:'generous', sigLayout:'2'};
+                        sigSpace:'standard', sigLayout:'2'};
 const setFields = f => SIMPLE.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';

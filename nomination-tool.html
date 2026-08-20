@@ -49,8 +49,8 @@
   /* document look — shared by preview, .doc export and print */
   #previewWrap{position:sticky;top:64px}
   #preview{border:1px solid var(--line);border-radius:6px;padding:60px 64px;max-height:78vh;overflow:auto}
-  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.3;color:#000}
-  .doc h2{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.3;color:#000}
+  .doc h2{text-align:center;font-size:10pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
           text-decoration:underline;margin:0 0 16px;font-family:inherit}
   .doc p{margin:0 0 9px;text-align:justify}
   .doc p.plain{text-align:left}
@@ -171,8 +171,8 @@
       <label>Space above each signing line</label>
       <select id="sigSpace" onchange="render()">
         <option value="compact">Compact — fits the most on a page</option>
-        <option value="standard">Standard</option>
-        <option value="generous" selected>Generous — room for DocuSign fields</option>
+        <option value="standard" selected>Standard</option>
+        <option value="generous">Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
       <label class="check"><input type="checkbox" id="sigDate" checked onchange="render()">
@@ -592,7 +592,7 @@ const SIG_SPACE = {
   generous: {px: 68, twips: 1040, mm: 21},
   wide:     {px: 96, twips: 1480, mm: 30}
 };
-const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
 /* Optional "Date: ______" rule beneath each signature, for signatories who
    date their own signing rather than relying on a single execution date. */
 const sigDated = () => !!document.getElementById('sigDate')?.checked;
@@ -933,7 +933,7 @@ function buildDocxDoc() {
   // No header or footer is built here: on letterhead the whole document is
   // poured into the user's own file, which brings its own page setup.
   return new Document({
-    styles:{default:{document:{run:{font:'Arial', size:22}}}},
+    styles:{default:{document:{run:{font:'Arial', size:20}}}},
     sections:[{properties:{
       page:{size:{width:11906, height:16838},                       // A4 portrait
             margin:{top:1134, bottom:1134, left:1134, right:1134}}   // 20 mm
@@ -950,8 +950,8 @@ function fallbackDoc() {
 }
 
 const DOC_CSS = `@page{size:A4;margin:20mm}
-.doc{font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.3;color:#000;background:#fff}
-.doc h2{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:0 0 16px}
+.doc{font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.3;color:#000;background:#fff}
+.doc h2{text-align:center;font-size:10pt;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:0 0 16px}
 .doc p{margin:0 0 9px;text-align:justify}
 .doc p.plain{text-align:left}
 .doc .sigblock{margin:20px 0 12px;page-break-inside:avoid}
@@ -992,7 +992,7 @@ function buildPdfDoc() {
 
   const lh = onLetterhead();
   const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
-  const M = 20, W = 210 - M * 2, BOTTOM = 297 - (lh ? 25 : M), LINE = 5.1, SIZE = 11;  // LINE: LINE is the letterhead
+  const M = 20, W = 210 - M * 2, BOTTOM = 297 - (lh ? 25 : M), LINE = 4.6, SIZE = 10;  // LINE: LINE is the letterhead
   let y = M, afterSig = false;
   d.setFont('helvetica', 'normal').setFontSize(SIZE);   // Helvetica = Arial metrics
 
@@ -1162,7 +1162,7 @@ const snapshot = () => {
   return {tool: 'nomination', version: 2, fields, lists: S};
 };
 
-const FIELD_DEFAULTS = {sigSpace:'generous', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
+const FIELD_DEFAULTS = {sigSpace:'standard', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
 const setFields = f => SIMPLE.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
