@@ -748,8 +748,10 @@ function buildBlocks() {
   directors.forEach(s => B.push({t:'sig', ...s}));
 
   const accepters = allSignatories(S.nominees);
+  // The direction is given by the purchaser's signatories, not the entity in the
+  // abstract — the nominees agree with the people who gave it.
   p(weOrI(accepters.length) + (partiesCapacityPhrase(S.nominees) || BLANK) +
-    ', hereby agree to the terms of the direction by ' + (purch || BLANK) +
+    ', hereby agree to the terms of the direction by ' + (partiesCapacityPhrase(S.purchasers) || BLANK) +
     ', and accept assignment of the Contract and the Land.');
 
   p('SIGNED by the said', 'exec');
