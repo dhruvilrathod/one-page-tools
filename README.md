@@ -9,6 +9,7 @@ server and no database — open it and it works.
 |---|---|
 | [Nomination Document Builder](nomination-tool.html) | Prepares a direction to transfer land to a nominee, and exports it as a formatted `.docx` or `.pdf` with signing blocks. |
 | [Never Sold or Occupied Declaration](never-sold-tool.html) | Prepares the vendor's confirmation that a home is brand new and has never been leased, sold or occupied. |
+| [Beneficial Owner Identification](beneficial-owner-tool.html) | Records the beneficial owners behind a non-individual client for customer due diligence, as a numbered form with a register. |
 
 ## Using them
 
@@ -64,9 +65,36 @@ Keep each tool to one file so it can be shared, emailed or saved on its own.
 - **Signatures** print two across the page by default, or one per line, with the position in
   brackets under each rule.
 
+## Beneficial Owner Identification — notes
+
+- **One document, many entities.** Each entity block picks its own type — company, trust,
+  partnership, individual or other — and carries the fields that type actually needs. A structure is
+  entered as several blocks: the trust, then its corporate trustee, then anything above it. Sections
+  number themselves in order, so a single trust reads `1. ENTITY BEING IDENTIFIED`,
+  `2. TRUST DETAILS`, `3. TRUSTEE(S)`, and adding a second entity renumbers the rest.
+- **One people register, not three.** Directors and secretaries, shareholders, and beneficial owners
+  are a single group: each person is entered once, with full legal name, position or capacity, date
+  of birth, shares held, % owned or controlled, nature of interest, and whether ID was verified. The
+  entity sections carry the entity's own identity — name, ACN, addresses — and nothing else, so
+  nobody is typed in twice.
+- **Pull in names from above** copies the trustees and partners already entered, merging anyone who
+  appears more than once into a single row: someone who is both trustee and partner reads as
+  *Trustee of Ash Family Trust; Partner of Ash & Co*, leaving you the dates of birth.
+- **The ownership threshold** in the register's wording is a field, defaulting to 25%.
+- **Output** is a form rather than a letter: shaded section bars, a checkbox row for the entity type,
+  and bordered tables, at A4 in Arial 10pt — the wide people register drops to 8.5pt to hold its
+  seven columns. Tables that run over a page repeat their heading row, a heading is never stranded at
+  the foot of a page, and a long capacity such as *Director/Shareholder* breaks at the slash rather
+  than mid-word. The PDF is real text, not an image.
+- **Notes** and a **matter reference** are optional and print only when filled. The declaration
+  wording is editable, and is signed off with a name, position and date.
+
+This document records what was collected and when. It is not itself the verification — keep the
+certified copies it refers to on the matter file.
+
 ## Letterhead
 
-Both tools have a **Print on letterhead** toggle under Document options, off by default, so only
+Every tool has a **Print on letterhead** toggle under Document options, off by default, so only
 the documents that should carry branding get it. Next to it, **Upload .docx…** takes your firm's
 existing Word letterhead.
 
@@ -78,7 +106,7 @@ What happens to it:
 - **Preview and PDF** — these cannot host a Word header, so they reproduce the logo and the header
   and footer text extracted from the same file. Expect a close approximation, not a pixel match.
 
-The letterhead is kept in the browser's local storage under one key shared by both tools, so it is
+The letterhead is kept in the browser's local storage under one key shared by every tool, so it is
 uploaded once per machine and never leaves it. No branding is stored in this repo. **Remove**
 clears it. The oversized logos letterheads often carry are downscaled to 900px on upload, which
 keeps storage and every generated PDF small.
@@ -88,13 +116,14 @@ no header images still works, using its text alone.
 
 ## Shared conventions
 
-Both tools follow the same rules, so anything you learn in one carries over:
+All three tools follow the same rules, so anything you learn in one carries over:
 
-- A4, Arial 11pt, in the `.docx` and the `.pdf` alike; the PDF is real text, not an image.
+- A4 and Arial in the `.docx` and the `.pdf` alike (the letters at 11pt, the denser identification
+  form at 10pt); the PDF is real text, not an image.
 - Adjustable signing space for e-signature platforms.
 - Drafts save as `.json` to a folder you pick; a draft only loads into the tool that wrote it.
-- Downloads are named plainly (`Nomination`, `Never sold or occupied`) with no client details in
-  the filename.
+- Downloads are named plainly (`Nomination`, `Never sold or occupied`, `Beneficial owner
+  identification`) with no client details in the filename.
 - Blank fields print as a rule rather than sample text, so an incomplete draft still previews.
 
 The generated wording is a starting point, not legal advice — always review a document before it

@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beneficial Owner Identification</title>
+<script src="https://unpkg.com/docx@9.0.2/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --line:#d8dbe0; --ink:#1b1d21; --muted:#6b7280;
+    --accent:#1f5fa9; --danger:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .spacer{flex:1}
+  header select{width:auto;padding:6px 8px}
+  header a.home{font-size:12px;color:var(--muted);text-decoration:none}
+  header a.home:hover{color:var(--accent)}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+  button:hover{background:#f0f2f5}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button.mini{padding:3px 9px;font-size:12px}
+  button.del{color:var(--danger);border-color:#e6c9c9}
+  .wrap{display:grid;grid-template-columns:minmax(420px,1fr) minmax(460px,1fr);gap:18px;padding:18px;align-items:start}
+  @media (max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}
+  legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--accent)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  textarea{resize:vertical;min-height:48px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .card{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:10px;margin-bottom:10px;background:#fbfcfd}
+  .card .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .card .card-head select{width:auto;font-size:12px;padding:3px 6px}
+  .sub{background:#fff;border-left-color:#b9c4d1;margin-top:10px}
+  .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .hide{display:none!important}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .status{font-size:12px;color:var(--muted);max-width:38ch}
+  .status.error{color:var(--danger);font-weight:600;max-width:none}
+  label.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:10px 0 2px}
+  label.check input{width:auto;margin:0}
+  .lhbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .lhname{font-size:12px;color:var(--muted);flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lhname.set{color:var(--accent);font-weight:600}
+  /* document look — shared by preview, .doc export and print */
+  #previewWrap{position:sticky;top:64px}
+  #preview{border:1px solid var(--line);border-radius:6px;padding:52px 56px;max-height:80vh;overflow:auto}
+  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.35;color:#000}
+  .doc .t1{font-size:14pt;font-weight:700;text-align:center;letter-spacing:.6px;margin:0 0 5px}
+  .doc .t2{font-size:11pt;font-weight:700;text-align:center;margin:0 0 6px}
+  .doc .lede{font-size:8pt;font-style:italic;text-align:center;color:#222;margin:0 0 4px}
+  .doc .meta{font-size:9pt;text-align:center;margin:0 0 4px}
+  .doc .sec{background:#e9edf2;border:1px solid #c3cad3;font-weight:700;font-size:9.5pt;
+            letter-spacing:.4px;padding:4px 7px;margin:16px 0 8px;page-break-after:avoid;break-after:avoid}
+  .doc .note{font-size:8.5pt;font-style:italic;color:#222;margin:0 0 8px}
+  .doc .cap{font-size:9pt;font-weight:700;margin:10px 0 4px}
+  .doc p{margin:0 0 10px}
+  .doc .checks{font-size:10pt;margin:0 0 12px}
+  .doc .checks span{margin-right:26px;white-space:nowrap}
+  .doc table.g{width:100%;border-collapse:collapse;margin:0 0 10px;table-layout:fixed;font-size:9.5pt}
+  .doc table.g td,.doc table.g th{border:1px solid #b9c1cb;padding:3px 6px;font-size:inherit;
+                                  text-align:left;vertical-align:top;word-wrap:break-word}
+  .doc table.g th{background:#eef1f5;font-weight:700;font-size:.95em}
+  .doc table.g td.lbl{background:#f6f8fa;font-weight:700}
+  .doc .lh{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:0 0 30px}
+  .doc .lh img{width:51.5mm;height:auto;display:block}
+  .doc .lhinfo{font-weight:700;font-size:10.5pt;line-height:1.55;color:#002060;white-space:nowrap}
+  .doc .lhfoot{margin-top:34px;padding-top:6px;border-top:1px solid #cfd6de;display:flex;
+               justify-content:space-between;gap:16px;font-size:9pt;color:#000}
+  .doc .signedby{margin:14px 0 0}
+  .doc .sigrow{display:grid;grid-template-columns:1fr 1fr;gap:34px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}
+  .doc .sigcell .signame{font-size:10pt}
+  .doc .sigcell .filled{font-size:10pt;padding-bottom:2px;min-height:14px}
+  @media print{
+    @page{size:A4;margin:20mm}
+    header,.wrap>.panel:first-child{display:none}
+    .wrap{display:block;padding:0}
+    #previewWrap{position:static}
+    #preview{border:none;border-radius:0;max-height:none;overflow:visible;padding:0}
+    .panel{border:none;padding:0}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Beneficial Owner Identification</h1>
+  <a class="home" href="index.html">← all tools</a>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <button onclick="saveFile()">Save draft…</button>
+  <button onclick="openFile()">Open draft…</button>
+  <input type="file" id="fileInput" accept=".json" class="hide" onchange="handleFilePick(this)">
+  <select id="samplePick" onchange="loadSample(this.value); this.selectedIndex=0" title="Fill the form with example data">
+    <option value="">Load sample…</option>
+    <option value="trust">Trust with corporate trustee</option>
+    <option value="company">Company, two shareholders</option>
+    <option value="partnership">Partnership</option>
+  </select>
+  <button onclick="resetAll()">Clear</button>
+  <button class="primary" onclick="downloadDocx()">Download .docx</button>
+  <button class="primary" onclick="downloadPdf()">Download .pdf</button>
+</header>
+
+<datalist id="knownNames"></datalist>
+<datalist id="positions">
+  <option>Director</option>
+  <option>Secretary</option>
+  <option>Director/Secretary</option>
+  <option>Sole Director</option>
+  <option>Shareholder</option>
+  <option>Director/Shareholder</option>
+  <option>Public Officer</option>
+  <option>Trustee</option>
+  <option>Partner</option>
+  <option>Beneficiary</option>
+  <option>Appointor</option>
+  <option>Settlor</option>
+  <option>Member</option>
+</datalist>
+<datalist id="trustTypes">
+  <option>Discretionary (family) trust</option>
+  <option>Unit trust</option>
+  <option>Self managed superannuation fund</option>
+  <option>Bare trust / LRBA holding trust</option>
+  <option>Testamentary trust</option>
+  <option>Charitable trust</option>
+  <option>Fixed trust</option>
+</datalist>
+
+<div class="wrap">
+  <!-- ============================== FORM ============================== -->
+  <div class="panel">
+    <fieldset>
+      <legend>Entities being identified</legend>
+      <div id="entities"></div>
+      <div class="addbar" id="entitiesAdd"></div>
+      <div class="hint">One block per entity in the structure — the trust, then its corporate trustee, then
+        any holding company above it. Sections number themselves in order as you add them.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>People — directors, shareholders and beneficial owners</legend>
+      <div id="owners"></div>
+      <div class="addbar">
+        <button class="mini" onclick="addOwner()">+ Add person</button>
+        <button class="mini" onclick="pullInNames()">Pull in names from above</button>
+      </div>
+      <div class="hint">One row per person, entered once: their position, what they hold, and how they
+        were identified. Covers the directors and secretaries, the shareholders, everyone who
+        ultimately owns or controls an entity at or above the threshold, and every named beneficiary
+        of a trust. <em>Pull in names</em> copies the trustees and partners entered above.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Declaration</legend>
+      <label>Declaration wording</label>
+      <textarea id="declText" oninput="render()"></textarea>
+      <div class="row">
+        <div><label>Completed by</label><input id="byName" oninput="render()" placeholder="Given names and surname"></div>
+        <div><label>Position</label><input id="byPosition" oninput="render()" placeholder="Conveyancer"></div>
+      </div>
+      <label>Date completed</label>
+      <input id="byDate" oninput="render()" placeholder="DD/MM/YYYY">
+      <label>Notes (optional — printed only when filled)</label>
+      <textarea id="notes" oninput="render()" placeholder="Source of funds enquiries, why a lower threshold was applied, documents held…"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Document options</legend>
+      <label class="check"><input type="checkbox" id="useLetterhead" onchange="render()">
+        <span>Print on letterhead</span></label>
+      <div class="lhbar">
+        <span class="lhname" id="lhName">No letterhead loaded</span>
+        <button class="mini" onclick="document.getElementById('lhFile').click()">Upload .docx…</button>
+        <button class="mini del" id="lhClear" onclick="clearLetterhead()">Remove</button>
+        <input type="file" id="lhFile" accept=".docx" class="hide" onchange="pickLetterhead(this)">
+      </div>
+      <div class="hint">Upload your firm's letterhead as a Word file. Its header, footer and page setup
+        are reused for the Word download; the preview and PDF reproduce the logo and text. Stored in this
+        browser, so you only do it once.</div>
+      <label>Heading</label>
+      <input id="docTitle" value="CUSTOMER DUE DILIGENCE" oninput="render()">
+      <label>Sub-heading</label>
+      <input id="docSubtitle" value="Beneficial Owner / Trustee / Company Identification Form" oninput="render()">
+      <div class="row">
+        <div><label>Matter reference (optional)</label><input id="matterRef" oninput="render()" placeholder="0000 CLIENT NAME"></div>
+        <div><label>Ownership threshold %</label><input id="threshold" value="25" oninput="render()"></div>
+      </div>
+      <label>Space above the signing line</label>
+      <select id="sigSpace" onchange="render()">
+        <option value="compact">Compact — fits the most on a page</option>
+        <option value="standard">Standard</option>
+        <option value="generous" selected>Generous — room for DocuSign fields</option>
+        <option value="wide">Wide — full signature box</option>
+      </select>
+    </fieldset>
+  </div>
+
+  <!-- ============================ PREVIEW ============================= -->
+  <div id="previewWrap">
+    <div class="panel">
+      <div class="status" style="margin-bottom:8px">Live preview</div>
+      <div id="preview" class="doc"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  A customer due diligence record: who stands behind a non-individual
+ *  customer. This document is a form rather than a letter — numbered
+ *  sections, a checkbox row for the entity type, tables of details, and
+ *  one register of the natural people at the end.
+ *
+ *  Entities are a list, each picking its own type, so a whole structure
+ *  (a trust, its corporate trustee, a holding company above it) is
+ *  recorded in a single document. Sections number themselves in order.
+ * ------------------------------------------------------------------ */
+const S = {entities: [], owners: []};
+
+const KINDS = {individual:'Individual', company:'Company', trust:'Trust',
+               partnership:'Partnership', other:'Other'};
+const CHECK_ORDER = ['individual', 'company', 'trust', 'partnership', 'other'];
+/* Capacities offered for the people register. It is a free-text field with
+   these as suggestions, because a person often holds more than one at once
+   ("Director/Shareholder") and no fixed list would cover every structure. */
+const POSITIONS = ['Director', 'Secretary', 'Director/Secretary', 'Sole Director', 'Shareholder',
+                   'Director/Shareholder', 'Public Officer', 'Trustee', 'Partner', 'Beneficiary',
+                   'Appointor', 'Settlor', 'Member'];
+const TRUSTEE_TYPES = {corporate:'Corporate', individual:'Individual'};
+const PH = {
+  name:'Given names and surname', company:'Company name Pty Ltd', trust:'Trust name',
+  acn:'000 000 000', abn:'00 000 000 000', dob:'DD/MM/YYYY', pct:'00%',
+  shares:'00 ordinary', addr:'00 Street Name, Suburb STATE 0000'
+};
+const LEDE = 'Prepared in accordance with applicable Anti-Money Laundering and ' +
+             'Counter-Terrorism Financing (AML/CTF) obligations';
+const DEFAULT_DECL =
+  'I confirm that the details recorded above were collected from the customer and verified in ' +
+  'accordance with this firm’s customer due diligence procedures, and that copies of the ' +
+  'identification relied on are held on the matter file.';
+
+/* ------------------------------------------------------------------ *
+ *  Letterhead
+ *
+ *  The user uploads their firm's letterhead as a .docx. For the Word
+ *  download the letterhead file itself is used as the container — the
+ *  generated body is dropped into it — so headers, footers, fonts and
+ *  page setup are exactly the firm's own. The preview and the PDF can
+ *  only approximate that, so they reproduce the logo and the header and
+ *  footer text pulled out of the same file.
+ *
+ *  It is kept in this browser's local storage, shared by every tool.
+ * ------------------------------------------------------------------ */
+const LH_KEY = 'onePageTools.letterhead.v1';
+let LH = null;   // {name, docx: base64, logo: dataURI, logoMm, lines: [], footer}
+
+const onLetterhead = () => !!(LH && document.getElementById('useLetterhead')?.checked);
+
+function loadStoredLetterhead() {
+  try { LH = JSON.parse(localStorage.getItem(LH_KEY)) || null; }
+  catch { LH = null; }
+}
+
+function clearLetterhead() {
+  LH = null;
+  try { localStorage.removeItem(LH_KEY); } catch {}
+  const box = document.getElementById('useLetterhead');
+  if (box) box.checked = false;
+  renderAll();
+  setStatus('Letterhead removed');
+}
+
+async function pickLetterhead(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (typeof JSZip === 'undefined') {
+    setStatus('Cannot read the letterhead — the zip library did not load (are you offline?)', true);
+    return;
+  }
+  try {
+    LH = await parseLetterheadDocx(await file.arrayBuffer(), file.name);
+    try { localStorage.setItem(LH_KEY, JSON.stringify(LH)); }
+    catch { setStatus('Letterhead loaded, but too large to store — it will apply for this session only', true); }
+    document.getElementById('useLetterhead').checked = true;
+    renderAll();
+    if (!LH.logo && !LH.lines.length) {
+      setStatus('Loaded ' + file.name + ', but no header content was found in it', true);
+    } else {
+      setStatus('Letterhead loaded from ' + file.name);
+    }
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + file.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+const bytesToBase64 = bytes => {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const base64ToBytes = b64 => {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+const MIME = {png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+              bmp:'image/bmp', svg:'image/svg+xml', webp:'image/webp'};
+
+/** Shrink an oversized logo — letterheads often embed one far larger than it
+    prints at, which bloats both local storage and every PDF drawn from it. */
+async function downscale(dataUri, maxWidth) {
+  try {
+    const img = new Image();
+    img.src = dataUri;
+    await img.decode();
+    if (img.naturalWidth <= maxWidth) return dataUri;
+    const c = document.createElement('canvas');
+    c.width = maxWidth;
+    c.height = Math.round(img.naturalHeight * maxWidth / img.naturalWidth);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');            // keeps transparency
+  } catch { return dataUri; }
+}
+
+/** Text of each non-empty paragraph in a header/footer part. */
+function paragraphTexts(xml) {
+  return [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+    // `<w:t` must be followed by a space or `>`, or it also matches `<w:tab/>`
+    .map(m => [...m[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map(t => t[1]).join('')
+                .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+async function parseLetterheadDocx(buf, name) {
+  const zip = await JSZip.loadAsync(buf);
+  const docFile = zip.file('word/document.xml');
+  if (!docFile) throw new Error('this is not a Word document');
+  const docXml = await docFile.async('string');
+
+  const relsFile = zip.file('word/_rels/document.xml.rels');
+  const relsXml = relsFile ? await relsFile.async('string') : '';
+  const relTarget = xml => {
+    const map = {};
+    for (const m of xml.matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = (m[0].match(/Id="([^"]+)"/) || [])[1];
+      const tg = (m[0].match(/Target="([^"]+)"/) || [])[1];
+      if (id && tg) map[id] = tg.replace(/^\/?word\//, '');
+    }
+    return map;
+  };
+  const docRels = relTarget(relsXml);
+
+  // Prefer the first-page header when the template uses one, as letterheads do.
+  const refs = kind => [...docXml.matchAll(new RegExp('<w:' + kind + 'Reference\\b[^>]*/>', 'g'))]
+    .map(m => ({type: (m[0].match(/w:type="(\w+)"/) || [])[1],
+                target: docRels[(m[0].match(/r:id="([^"]+)"/) || [])[1]]}))
+    .filter(r => r.target);
+  const choose = list => {
+    const first = list.find(r => r.type === 'first');
+    if (/<w:titlePg\s*\/?>/.test(docXml) && first) return first.target;
+    return (list.find(r => r.type === 'default') || first || list[0] || {}).target;
+  };
+
+  const headerPart = choose(refs('header'));
+  const footerPart = choose(refs('footer'));
+
+  let logo = '', logoMm = {w: 51.5, h: 16.7}, lines = [];
+  if (headerPart) {
+    const hXml = await zip.file('word/' + headerPart).async('string');
+    lines = paragraphTexts(hXml);
+
+    const hRelsFile = zip.file('word/_rels/' + headerPart.split('/').pop() + '.rels');
+    const hRels = hRelsFile ? relTarget(await hRelsFile.async('string')) : {};
+    const embeds = [...hXml.matchAll(/r:embed="([^"]+)"/g)].map(m => hRels[m[1]]).filter(Boolean);
+
+    // the largest embedded image is the logo; small ones are icons
+    let best = null;
+    for (const target of [...new Set(embeds)]) {
+      const f = zip.file('word/' + target);
+      if (!f) continue;
+      const bytes = await f.async('uint8array');
+      if (!best || bytes.length > best.bytes.length) best = {target, bytes};
+    }
+    if (best) {
+      const ext = (best.target.split('.').pop() || 'png').toLowerCase();
+      logo = 'data:' + (MIME[ext] || 'image/png') + ';base64,' + bytesToBase64(best.bytes);
+      logo = await downscale(logo, 900);        // print-quality, but far smaller to store and to draw
+      // printed size, taken from the drawing's extent (EMU) where present
+      const ext2 = hXml.match(/<wp:extent cx="(\d+)" cy="(\d+)"/);
+      if (ext2) logoMm = {w: +(ext2[1] / 36000).toFixed(1), h: +(ext2[2] / 36000).toFixed(1)};
+    }
+  }
+
+  let footer = '';
+  if (footerPart) {
+    footer = paragraphTexts(await zip.file('word/' + footerPart).async('string'))
+      .join('  |  ')
+      .replace(/\s*Page\s*\d*\s*of\s*\d*\s*$/i, '')     // page-number field text
+      .trim();
+  }
+
+  return {name, docx: bytesToBase64(new Uint8Array(buf)), logo, logoMm, lines, footer};
+}
+
+/* ------------------------------------------------------------------ *
+ *  State helpers and mutations
+ * ------------------------------------------------------------------ */
+const uid  = () => Math.random().toString(36).slice(2, 9);
+const val  = id => (document.getElementById(id)?.value || '').trim();
+const esc  = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const find = (listName, id) => S[listName].find(x => x.id === id);
+const clean = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
+
+const newHolder  = () => ({id:uid(), name:'', pct:''});
+const newTrustee = () => ({id:uid(), type:'corporate', name:'', acn:''});
+/* One row of the people register: a person is entered once, with the capacity
+   they hold, what they hold, and how they were identified. */
+const newOwner   = () => ({id:uid(), name:'', role:'', dob:'', shares:'', pct:'',
+                           interest:'', verified:''});
+
+function newEntity(kind) {
+  return {id:uid(), kind,
+    // company
+    name:'', acn:'', abn:'', regOffice:'', ppob:'',
+    // trust
+    trustName:'', trustType:'', trustDate:'', jurisdiction:'', settlors:'', appointors:'', beneficiaries:'',
+    trustees:     kind === 'trust' ? [newTrustee()] : [],
+    // partnership
+    firmName:'', businessAddress:'',
+    partners:     kind === 'partnership' ? [newHolder(), newHolder()] : [],
+    // individual
+    indName:'', dob:'', address:'',
+    // other
+    otherType:'', otherName:'', otherDetails:''};
+}
+
+const SUB_NEW = {partners:newHolder, trustees:newTrustee};
+
+function addEntity(kind)     { S.entities.push(newEntity(kind)); renderAll(); }
+function removeEntity(id)    { S.entities = S.entities.filter(e => e.id !== id); renderAll(); }
+function setEntity(id, f, v) {
+  const e = find('entities', id);
+  if (!e) return;
+  e[f] = v;
+  if (f !== 'kind') { render(); return; }
+  // a type it has just been switched to starts with its usual rows, but
+  // anything already entered under the old type is left alone
+  if (v === 'trust' && !e.trustees.length)       e.trustees = [newTrustee()];
+  if (v === 'partnership' && !e.partners.length) e.partners = [newHolder(), newHolder()];
+  renderAll();
+}
+function addSub(eid, key)    { find('entities', eid)[key].push(SUB_NEW[key]()); renderAll(); }
+function removeSub(eid, key, sid) {
+  const e = find('entities', eid);
+  e[key] = e[key].filter(x => x.id !== sid);
+  renderAll();
+}
+function setSub(eid, key, sid, f, v) {
+  const s = find('entities', eid)[key].find(x => x.id === sid);
+  if (!s) return;
+  s[f] = v;
+  (key === 'trustees' && f === 'type') ? renderAll() : render();
+}
+function addOwner()        { S.owners.push(newOwner()); renderAll(); }
+function removeOwner(id)   { S.owners = S.owners.filter(o => o.id !== id); renderAll(); }
+function setOwner(id, f, v) { const o = find('owners', id); if (o) { o[f] = v; render(); } }
+
+/** Everyone already named in the entity sections, with the capacity that put
+    them there — the register is usually these people plus their dates of birth.
+
+    Somebody who appears more than once is one person in the register, so their
+    capacities are gathered up: a director who also holds shares reads as
+    "Director and shareholder of X Pty Ltd" rather than twice over. */
+function namesAbove() {
+  const held = [];      // {name, dob, pct, cap, of}
+  const hold = (name, cap, of, extra = {}) =>
+    name && held.push(Object.assign({name, cap, of, dob:'', pct:''}, extra));
+
+  S.entities.forEach(e => {
+    if (e.kind === 'individual') hold(e.indName, 'Individual', '', {dob:e.dob});
+    if (e.kind === 'trust') {
+      const tr = e.trustName || 'the trust';
+      e.trustees.forEach(t => t.type === 'individual' && hold(t.name, 'Trustee', tr));
+    }
+    if (e.kind === 'partnership') {
+      const fm = e.firmName || 'the partnership';
+      e.partners.forEach(p => hold(p.name, 'Partner', fm, {pct:p.pct}));
+    }
+  });
+
+  const people = new Map();
+  held.forEach(h => {
+    const k = h.name.trim().toLowerCase();
+    if (!people.has(k)) people.set(k, {name:h.name, dob:'', pct:'', where:[]});
+    const p = people.get(k);
+    p.dob = p.dob || h.dob;
+    p.pct = p.pct || h.pct;
+    const w = p.where.find(x => x.of === h.of) || (p.where.push({of:h.of, caps:[]}), p.where.at(-1));
+    if (!w.caps.includes(h.cap)) w.caps.push(h.cap);
+  });
+
+  return [...people.values()].map(p => ({
+    name: p.name, dob: p.dob, pct: p.pct,
+    role: [...new Set(p.where.flatMap(w => w.caps))].join('/'),
+    // only the first capacity keeps its capital: "Director and shareholder of …"
+    interest: p.where.map(w => {
+      const caps = w.caps.map((c, i) => i ? c.toLowerCase() : c).join(' and ');
+      return w.of ? caps + ' of ' + w.of : caps;
+    }).join('; ')
+  }));
+}
+
+function pullInNames() {
+  const key  = s => s.trim().toLowerCase();
+  const have = new Set(S.owners.map(o => key(o.name)).filter(Boolean));
+  const rows = namesAbove().filter(p => {
+    if (have.has(key(p.name))) return false;
+    have.add(key(p.name));
+    return true;
+  });
+  if (!rows.length) {
+    setStatus(namesAbove().length ? 'Everyone named above is already in the register'
+                                  : 'No names have been entered in the sections above yet', true);
+    return;
+  }
+  const blank = o => !o.name && !o.role && !o.dob && !o.shares && !o.pct && !o.interest && !o.verified;
+  S.owners = S.owners.filter(o => !blank(o))
+    .concat(rows.map(p => Object.assign(newOwner(),
+      {name:p.name, role:p.role || '', dob:p.dob || '', pct:p.pct || '', interest:p.interest})));
+  renderAll();
+  setStatus('Added ' + rows.length + (rows.length > 1 ? ' names' : ' name') + ' to the register');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Form rendering
+ * ------------------------------------------------------------------ */
+const addBar = () => Object.entries(KINDS)
+  .map(([k, lbl]) => `<button class="mini" onclick="addEntity('${k}')">+ ${lbl}</button>`).join('');
+
+const inp = (e, f, ph = '', list = '') =>
+  `<input value="${esc(e[f])}" placeholder="${ph}" ${list ? 'list="' + list + '"' : ''}
+          oninput="setEntity('${e.id}','${f}',this.value)">`;
+const area = (e, f, ph = '') =>
+  `<textarea placeholder="${ph}" oninput="setEntity('${e.id}','${f}',this.value)">${esc(e[f])}</textarea>`;
+
+function subRows(e, key, title, cols) {
+  return e[key].map((s, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>${title} ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${e.id}','${key}','${s.id}')">Remove</button></div>
+      ${cols(s)}
+    </div>`).join('') +
+    `<div class="addbar"><button class="mini" onclick="addSub('${e.id}','${key}')">+ Add ${title.toLowerCase()}</button></div>`;
+}
+
+const subInp = (e, key, s, f, ph = '') =>
+  `<input value="${esc(s[f])}" placeholder="${ph}" oninput="setSub('${e.id}','${key}','${s.id}','${f}',this.value)">`;
+
+const holderCols = (e, key, pctLabel) => s => `<div class="row">
+      <div style="flex:2"><label>Name</label>${subInp(e, key, s, 'name', PH.name)}</div>
+      <div><label>${pctLabel}</label>${subInp(e, key, s, 'pct', PH.pct)}</div>
+    </div>`;
+
+function trusteeCols(e, s) {
+  return `<div class="row">
+      <div><label>Trustee type</label>
+        <select onchange="setSub('${e.id}','trustees','${s.id}','type',this.value)">
+          ${Object.entries(TRUSTEE_TYPES).map(([k, l]) =>
+            `<option value="${k}" ${s.type === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select></div>
+      <div style="flex:2"><label>Full legal name</label>
+        ${subInp(e, 'trustees', s, 'name', s.type === 'corporate' ? PH.company : PH.name)}</div>
+    </div>
+    <div class="${s.type === 'corporate' ? '' : 'hide'}">
+      <label>ACN / ABN</label>${subInp(e, 'trustees', s, 'acn', PH.acn)}
+      <div class="hint">Add that company as an entity of its own below, so its own officers and
+        shareholders are identified too.</div>
+    </div>`;
+}
+
+function entityCard(e, i) {
+  const head = `<div class="card-head">
+      <span>Entity ${i + 1}</span>
+      <span>
+        <select onchange="setEntity('${e.id}','kind',this.value)" title="Entity type">
+          ${Object.entries(KINDS).map(([k, l]) =>
+            `<option value="${k}" ${e.kind === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <button class="mini del" onclick="removeEntity('${e.id}')">Remove</button>
+      </span>
+    </div>`;
+
+  const body = {
+    company: () => `
+      <label>Company name</label>${inp(e, 'name', PH.company)}
+      <div class="row">
+        <div><label>ACN</label>${inp(e, 'acn', PH.acn)}</div>
+        <div><label>ABN</label>${inp(e, 'abn', PH.abn)}</div>
+      </div>
+      <label>Registered office</label>${inp(e, 'regOffice', PH.addr)}
+      <label>Principal place of business</label>${inp(e, 'ppob', PH.addr)}
+      <div class="hint">Its directors, secretaries and shareholders go in the people register below,
+        one row each.</div>`,
+
+    trust: () => `
+      <label>Full name of trust</label>${inp(e, 'trustName', PH.trust)}
+      <div class="row">
+        <div><label>Type of trust</label>${inp(e, 'trustType', 'Discretionary (family) trust', 'trustTypes')}</div>
+        <div><label>Date established</label>${inp(e, 'trustDate', PH.dob)}</div>
+      </div>
+      <label>Country / jurisdiction governing the trust</label>${inp(e, 'jurisdiction', 'South Australia')}
+      <label>Names of any known settlor(s)</label>${inp(e, 'settlors', PH.name)}
+      <label>Names of any appointor(s) / protector(s)</label>${inp(e, 'appointors', PH.name)}
+      <label>Named beneficiaries</label>${area(e, 'beneficiaries', 'One per line')}
+      <label>Trustees</label>
+      ${subRows(e, 'trustees', 'Trustee', s => trusteeCols(e, s))}`,
+
+    partnership: () => `
+      <label>Name of partnership / firm</label>${inp(e, 'firmName', 'Firm name')}
+      <label>ABN</label>${inp(e, 'abn', PH.abn)}
+      <label>Business address</label>${inp(e, 'businessAddress', PH.addr)}
+      <label>Partners</label>
+      ${subRows(e, 'partners', 'Partner', holderCols(e, 'partners', '% entitlement'))}`,
+
+    individual: () => `
+      <label>Full legal name</label>${inp(e, 'indName', PH.name)}
+      <div class="row">
+        <div><label>Date of birth</label>${inp(e, 'dob', PH.dob)}</div>
+        <div><label>Residential address</label>${inp(e, 'address', PH.addr)}</div>
+      </div>`,
+
+    other: () => `
+      <label>Type of entity</label>${inp(e, 'otherType', 'Incorporated association')}
+      <label>Full legal name</label>${inp(e, 'otherName', 'Entity name')}
+      <label>ABN</label>${inp(e, 'abn', PH.abn)}
+      <label>How it is owned or controlled</label>${area(e, 'otherDetails', 'Committee, members, controlling body…')}`
+  }[e.kind];
+
+  return `<div class="card">${head}${body ? body() : ''}</div>`;
+}
+
+function ownerCard(o, i) {
+  const set = f => `setOwner('${o.id}','${f}',this.value)`;
+  return `<div class="card">
+      <div class="card-head"><span>Person ${i + 1}</span>
+        <button class="mini del" onclick="removeOwner('${o.id}')">Remove</button></div>
+      <div class="row">
+        <div style="flex:2"><label>Full legal name</label>
+          <input value="${esc(o.name)}" list="knownNames" placeholder="${PH.name}" oninput="${set('name')}"></div>
+        <div><label>Position / capacity</label>
+          <input value="${esc(o.role)}" list="positions" placeholder="Director/Shareholder" oninput="${set('role')}"></div>
+      </div>
+      <div class="row">
+        <div><label>Date of birth</label><input value="${esc(o.dob)}" placeholder="${PH.dob}" oninput="${set('dob')}"></div>
+        <div><label>Shares held</label><input value="${esc(o.shares)}" placeholder="${PH.shares}" oninput="${set('shares')}"></div>
+        <div><label>% owned / control</label><input value="${esc(o.pct)}" placeholder="${PH.pct}" oninput="${set('pct')}"></div>
+        <div><label>ID verified</label>
+          <select onchange="${set('verified')}">
+            <option value="" ${o.verified === '' ? 'selected' : ''}>—</option>
+            <option value="Y" ${o.verified === 'Y' ? 'selected' : ''}>Y</option>
+            <option value="N" ${o.verified === 'N' ? 'selected' : ''}>N</option>
+          </select></div>
+      </div>
+      <label>Nature of interest</label>
+      <input value="${esc(o.interest)}" placeholder="Director/shareholder of trustee company"
+             oninput="${set('interest')}">
+    </div>`;
+}
+
+function renderForm() {
+  document.getElementById('entities').innerHTML = S.entities.map(entityCard).join('');
+  document.getElementById('entitiesAdd').innerHTML = addBar();
+  document.getElementById('owners').innerHTML = S.owners.map(ownerCard).join('');
+  document.getElementById('knownNames').innerHTML =
+    [...new Set(namesAbove().map(p => p.name))].map(n => `<option value="${esc(n)}">`).join('');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Document blocks — shared by the preview, the DOCX and the PDF.
+ *
+ *  grid   a bordered table. `label:true` shades the first column, so a
+ *         two-column grid reads as a list of labelled fields.
+ *  checks the row of entity-type boxes.
+ * ------------------------------------------------------------------ */
+const BLANK = '_'.repeat(20);
+const grid = (widths, rows, o = {}) => Object.assign({t:'grid', widths, rows}, o);
+const fields = rows => grid([0.34, 0.66], rows, {label: true});
+const atLeastOne = rows => rows.length ? rows : [rows[0] || []];
+
+/* Vertical room above the signing rule, for e-signature platforms. */
+const SIG_SPACE = {
+  compact:  {px: 20, twips: 300,  mm: 7},
+  standard: {px: 42, twips: 640,  mm: 13},
+  generous: {px: 68, twips: 1040, mm: 21},
+  wide:     {px: 96, twips: 1480, mm: 30}
+};
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
+
+function entityBlocks(e, B, sec) {
+  if (e.kind === 'company') {
+    sec('COMPANY DETAILS');
+    B.push(fields([
+      ['Company name', e.name],
+      ['ACN', e.acn],
+      ['ABN', e.abn],
+      ['Registered office', clean(e.regOffice)],
+      ['Principal place of business', clean(e.ppob)]
+    ]));
+    return;
+  }
+  if (e.kind === 'trust') {
+    sec('TRUST DETAILS');
+    B.push({t:'note', text:'Complete this section for the trust itself. Each trustee is identified below, ' +
+                           'and every individual behind it in the register at the end of this form.'});
+    B.push(fields([
+      ['Full name of trust', e.trustName],
+      ['Type of trust', e.trustType],
+      ['Date trust established', e.trustDate],
+      ['Country / jurisdiction governing the trust', e.jurisdiction],
+      ['Names of any known settlor(s)', e.settlors],
+      ['Names of any appointor(s) / protector(s)', e.appointors],
+      ['Names of any beneficiaries', e.beneficiaries]
+    ]));
+    sec('TRUSTEE(S)');
+    B.push({t:'note', text:'For an individual trustee, that person is identified in the register below. ' +
+                           'For a corporate trustee, the company is added as an entity of its own so that ' +
+                           'its officers and shareholders are identified as well.'});
+    B.push(grid([0.2, 0.52, 0.28],
+                atLeastOne(e.trustees.map(t => [TRUSTEE_TYPES[t.type] || '', t.name,
+                                                t.type === 'corporate' ? t.acn : ''])),
+                {head:['Trustee type', 'Full legal name of trustee', 'ACN / ABN']}));
+    return;
+  }
+  if (e.kind === 'partnership') {
+    sec('PARTNERSHIP DETAILS');
+    B.push(fields([
+      ['Name of partnership / firm', e.firmName],
+      ['ABN', e.abn],
+      ['Business address', clean(e.businessAddress)]
+    ]));
+    B.push(grid([0.7, 0.3], atLeastOne(e.partners.map(p => [p.name, p.pct])),
+                {head:['Partner', '% entitlement'], cap:'Partners'}));
+    return;
+  }
+  if (e.kind === 'individual') {
+    sec('INDIVIDUAL DETAILS');
+    B.push(fields([
+      ['Full legal name', e.indName],
+      ['Date of birth', e.dob],
+      ['Residential address', clean(e.address)]
+    ]));
+    return;
+  }
+  sec('ENTITY DETAILS');
+  B.push(fields([
+    ['Type of entity', e.otherType],
+    ['Full legal name', e.otherName],
+    ['ABN', e.abn],
+    ['How it is owned or controlled', e.otherDetails]
+  ]));
+}
+
+function buildBlocks() {
+  const B = [];
+  let n = 0;
+  const sec = text => B.push({t:'section', text: (++n) + '. ' + text});
+
+  B.push({t:'title', text: val('docTitle')});
+  if (val('docSubtitle')) B.push({t:'sub', text: val('docSubtitle')});
+  B.push({t:'lede', text: LEDE});
+  if (val('matterRef')) B.push({t:'meta', text: 'Matter reference: ' + val('matterRef')});
+
+  const many = S.entities.length > 1;
+  S.entities.forEach((e, i) => {
+    sec('ENTITY BEING IDENTIFIED' + (many ? ' (' + (i + 1) + ' OF ' + S.entities.length + ')' : ''));
+    B.push({t:'checks', items: CHECK_ORDER.map(k => ({
+      label: k === 'other' && e.kind === 'other' && e.otherType ? 'Other: ' + e.otherType : KINDS[k],
+      on: e.kind === k
+    }))});
+    entityBlocks(e, B, sec);
+  });
+
+  sec('DIRECTORS, SHAREHOLDERS AND BENEFICIAL OWNERS REGISTER');
+  const pct = val('threshold') || '25';
+  B.push({t:'note', text:'Every director, secretary, shareholder, partner and trustee of the ' +
+    'entities identified above, everyone who ultimately owns or controls ' + pct + '% or more of ' +
+    'one of them (or a lesser threshold where applicable law requires it), and the named ' +
+    'beneficiaries of any trust.'});
+  B.push(grid([0.20, 0.15, 0.12, 0.11, 0.10, 0.20, 0.12],
+              atLeastOne(S.owners.map(o =>
+                [o.name, o.role, o.dob, o.shares, o.pct, o.interest, o.verified])),
+              {size: 8.5,
+               head:['Full legal name', 'Position / capacity', 'Date of birth', 'Shares held',
+                     '% owned / control', 'Nature of interest', 'ID verified (Y/N)']}));
+
+  if (val('notes')) {
+    sec('NOTES');
+    B.push({t:'para', text: val('notes')});
+  }
+
+  sec('DECLARATION');
+  if (val('declText')) B.push({t:'para', text: val('declText')});
+  B.push({t:'sign', label:'Completed by:', name:val('byName'),
+          position:val('byPosition'), date:val('byDate')});
+  return B;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Preview
+ * ------------------------------------------------------------------ */
+function letterheadHtml() {
+  const logo = LH.logo ? `<img src="${LH.logo}" style="width:${LH.logoMm.w}mm" alt="">` : '';
+  const info = LH.lines.length ? `<div class="lhinfo">${LH.lines.map(esc).join('<br>')}</div>` : '';
+  return `<div class="lh">${logo}${info}</div>`;
+}
+const letterheadFooterHtml = () => LH.footer
+  ? `<div class="lhfoot"><span>${esc(LH.footer)}</span><span></span></div>` : '';
+
+const cellHtml = s => esc(s || '').replace(/\n/g, '<br>') || '&nbsp;';
+
+function gridHtml(g) {
+  const cols = g.widths.map(w => `<col style="width:${(w * 100).toFixed(2)}%">`).join('');
+  const head = g.head ? `<tr>${g.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>` : '';
+  const rows = g.rows.map(r => `<tr>${g.widths.map((w, i) =>
+    `<td class="${g.label && i === 0 ? 'lbl' : ''}">${cellHtml(r[i])}</td>`).join('')}</tr>`).join('');
+  return (g.cap ? `<div class="cap">${esc(g.cap)}</div>` : '') +
+         `<table class="g"${g.size ? ` style="font-size:${g.size}pt"` : ''}>` +
+         `<colgroup>${cols}</colgroup>${head}${rows}</table>`;
+}
+
+function signHtml(b) {
+  return `<p class="signedby">${esc(b.label)}</p>
+    <div class="sigrow" style="margin-top:${sigSpace().px}px">
+      <div class="sigcell">
+        <div class="filled">&nbsp;</div>
+        <div class="sigline"></div>
+        <div class="signame">${esc(b.name || BLANK)}${b.position ? ' (' + esc(b.position) + ')' : ''}</div>
+      </div>
+      <div class="sigcell">
+        <div class="filled">${esc(b.date) || '&nbsp;'}</div>
+        <div class="sigline"></div>
+        <div class="signame">Date</div>
+      </div>
+    </div>`;
+}
+
+function docHtml() {
+  const lh = onLetterhead();
+  const body = buildBlocks().map(b => {
+    switch (b.t) {
+      case 'title':   return `<div class="t1">${esc(b.text)}</div>`;
+      case 'sub':     return `<div class="t2">${esc(b.text)}</div>`;
+      case 'lede':    return `<div class="lede">${esc(b.text)}</div>`;
+      case 'meta':    return `<div class="meta">${esc(b.text)}</div>`;
+      case 'section': return `<div class="sec">${esc(b.text)}</div>`;
+      case 'note':    return `<div class="note">${esc(b.text)}</div>`;
+      case 'para':    return `<p>${esc(b.text).replace(/\n/g, '<br>')}</p>`;
+      case 'checks':  return `<div class="checks">${b.items.map(i =>
+        `<span>${i.on ? '&#9746;' : '&#9744;'} ${esc(i.label)}</span>`).join('')}</div>`;
+      case 'grid':    return gridHtml(b);
+      case 'sign':    return signHtml(b);
+    }
+    return '';
+  }).join('');
+  return (lh ? letterheadHtml() : '') + body + (lh ? letterheadFooterHtml() : '');
+}
+
+function renderPreview() { document.getElementById('preview').innerHTML = docHtml(); }
+
+function renderLetterheadBar() {
+  const name = document.getElementById('lhName');
+  const box  = document.getElementById('useLetterhead');
+  const clr  = document.getElementById('lhClear');
+  if (!name) return;
+  name.textContent = LH ? LH.name : 'No letterhead loaded';
+  name.classList.toggle('set', !!LH);
+  box.disabled = !LH;
+  if (!LH) box.checked = false;
+  clr.classList.toggle('hide', !LH);
+}
+
+function render()    { renderLetterheadBar(); renderPreview(); }
+function renderAll() { renderForm(); render(); }
+
+/* ------------------------------------------------------------------ *
+ *  DOCX
+ * ------------------------------------------------------------------ */
+const TEXT_WIDTH = 11906 - 1134 * 2;          // A4 less 20 mm margins
+const BOX = {on:'☒', off:'☐'};      // ballot boxes, crossed and empty
+
+async function downloadDocx() {
+  if (typeof docx === 'undefined') { fallbackDoc(); return; }
+  // Ask where to save before building the document, so the dialog opens
+  // while the click is still counted as a user gesture.
+  const target = await pickTarget(fileName() + '.docx');
+  if (target === CANCELLED) return;
+
+  const doc = buildDocxDoc();
+  if (!doc) { fallbackDoc(); return; }
+  let blob;
+  try {
+    blob = await docx.Packer.toBlob(doc);
+  } catch (e) { console.error(e); fallbackDoc(); return; }
+
+  if (onLetterhead()) {
+    try {
+      blob = await pourIntoLetterhead(blob);
+    } catch (e) {
+      console.error(e);
+      setStatus('Could not use the letterhead file for the Word download — ' +
+                (e.message || e.name) + '. Saved without it.', true);
+    }
+  }
+  save(blob, fileName() + '.docx', target);
+}
+
+/** Put the generated body inside the user's letterhead document, so the
+    firm's own header, footer, fonts and page setup carry through to Word. */
+async function pourIntoLetterhead(generated) {
+  if (typeof JSZip === 'undefined') throw new Error('the zip library did not load');
+  const tpl  = await JSZip.loadAsync(base64ToBytes(LH.docx));
+  const ours = await JSZip.loadAsync(generated);
+
+  const tplXml = await tpl.file('word/document.xml').async('string');
+  const ourXml = await ours.file('word/document.xml').async('string');
+
+  const bodyOf = xml => {
+    const start = xml.indexOf('<w:body>');
+    if (start < 0) throw new Error('unexpected document structure');
+    const from = start + '<w:body>'.length;
+    const sect = xml.lastIndexOf('<w:sectPr');
+    const to = sect > from ? sect : xml.lastIndexOf('</w:body>');
+    return {from, to, inner: xml.slice(from, to)};
+  };
+
+  const ourBody = bodyOf(ourXml);
+  const tplBody = bodyOf(tplXml);
+  // keep the letterhead's own sectPr: its margins, headers and footers
+  tpl.file('word/document.xml', tplXml.slice(0, tplBody.from) + ourBody.inner + tplXml.slice(tplBody.to));
+
+  return tpl.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    compression: 'DEFLATE'
+  });
+}
+
+function buildDocxDoc() {
+  if (typeof docx === 'undefined') return null;
+  const {Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle,
+         AlignmentType, ShadingType} = docx;
+  const NONE = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+  const noBorders = {top:NONE, bottom:NONE, left:NONE, right:NONE, insideHorizontal:NONE, insideVertical:NONE};
+  const RULE = {style:BorderStyle.SINGLE, size:4, color:'B9C1CB'};
+  const gridBorders = {top:RULE, bottom:RULE, left:RULE, right:RULE,
+                       insideHorizontal:RULE, insideVertical:RULE};
+  const shade = fill => ({type:ShadingType.CLEAR, color:'auto', fill});
+  const children = [];
+
+  const line = (text, opts = {}) => new Paragraph(Object.assign({
+    children:[new TextRun({text, bold:opts.bold, italics:opts.italics, size:opts.size || 20})]
+  }, opts.para || {}));
+
+  /** One bordered table. Cells hold plain text; newlines become new lines. */
+  const gridTable = g => {
+    const width = i => Math.round(g.widths[i] * TEXT_WIDTH);
+    const body = Math.round((g.size || 9.5) * 2);      // half-points
+    const cell = (text, i, o = {}) => new TableCell({
+      width:{size:width(i), type:WidthType.DXA},
+      margins:{top:40, bottom:40, left:90, right:90},
+      shading: o.fill ? shade(o.fill) : undefined,
+      children: String(text ?? '').split('\n').map(t =>
+        new Paragraph({spacing:{after:0, line:250},
+                       children:[new TextRun({text:t, bold:o.bold, size:o.size || body})]}))
+    });
+    const rows = [];
+    if (g.head) rows.push(new TableRow({tableHeader:true, children: g.head.map((h, i) =>
+      cell(h, i, {bold:true, fill:'EEF1F5', size:body - 1}))}));
+    g.rows.forEach(r => rows.push(new TableRow({children: g.widths.map((w, i) =>
+      cell(r[i], i, g.label && i === 0 ? {bold:true, fill:'F6F8FA'} : {}))})));
+    return new Table({width:{size:TEXT_WIDTH, type:WidthType.DXA},
+                      columnWidths: g.widths.map((w, i) => width(i)),
+                      borders: gridBorders, rows});
+  };
+
+  buildBlocks().forEach(b => {
+    switch (b.t) {
+      case 'title':
+        children.push(line(b.text, {bold:true, size:28,
+          para:{alignment:AlignmentType.CENTER, spacing:{after:80}}}));
+        return;
+      case 'sub':
+        children.push(line(b.text, {bold:true, size:22,
+          para:{alignment:AlignmentType.CENTER, spacing:{after:80}}}));
+        return;
+      case 'lede':
+        children.push(line(b.text, {italics:true, size:16,
+          para:{alignment:AlignmentType.CENTER, spacing:{after:60}}}));
+        return;
+      case 'meta':
+        children.push(line(b.text, {size:18, para:{alignment:AlignmentType.CENTER, spacing:{after:60}}}));
+        return;
+      case 'section':
+        children.push(new Paragraph({
+          shading: shade('E9EDF2'),
+          border:{top:{style:BorderStyle.SINGLE, size:4, color:'C3CAD3', space:2},
+                  bottom:{style:BorderStyle.SINGLE, size:4, color:'C3CAD3', space:2},
+                  left:{style:BorderStyle.SINGLE, size:4, color:'C3CAD3', space:4},
+                  right:{style:BorderStyle.SINGLE, size:4, color:'C3CAD3', space:4}},
+          spacing:{before:280, after:140},
+          keepNext:true,
+          children:[new TextRun({text:b.text, bold:true, size:19})]}));
+        return;
+      case 'note':
+        children.push(line(b.text, {italics:true, size:17, para:{spacing:{after:140}}}));
+        return;
+      case 'para':
+        b.text.split('\n').forEach(t => children.push(line(t, {para:{spacing:{after:140}}})));
+        return;
+      case 'checks':
+        children.push(new Paragraph({spacing:{after:200},
+          children: b.items.map(i => new TextRun({
+            text: (i.on ? BOX.on : BOX.off) + ' ' + i.label + '     '}))}));
+        return;
+      case 'grid':
+        if (b.cap) children.push(line(b.cap, {bold:true, size:18, para:{spacing:{before:160, after:60}}}));
+        children.push(gridTable(b));
+        children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:'', size:12})]}));
+        return;
+      case 'sign': {
+        children.push(line(b.label, {para:{spacing:{before:200, after:60}}}));
+        const half = Math.floor(TEXT_WIDTH / 2);
+        const sigCell = (under, above) => new TableCell({
+          width:{size:half, type:WidthType.DXA},
+          margins:{right:340},
+          borders:noBorders,
+          children:[
+            // the rule is the cell paragraph's bottom border
+            new Paragraph({spacing:{before: sigSpace().twips, after:40},
+                           border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
+                           children:[new TextRun({text: above || '', size:20})]}),
+            new Paragraph({spacing:{after:120}, children:[new TextRun({text:under, size:20})]})
+          ]
+        });
+        children.push(new Table({width:{size:TEXT_WIDTH, type:WidthType.DXA}, borders:noBorders,
+          rows:[new TableRow({children:[
+            sigCell((b.name || BLANK) + (b.position ? ' (' + b.position + ')' : ''), ''),
+            sigCell('Date', b.date)
+          ]})]}));
+        // Word runs two tables together, and treats a body ending in one oddly
+        children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:'', size:12})]}));
+        return;
+      }
+    }
+  });
+
+  // No header or footer is built here: on letterhead the whole document is
+  // poured into the user's own file, which brings its own page setup.
+  return new Document({
+    styles:{default:{document:{run:{font:'Arial', size:20}}}},
+    sections:[{properties:{
+      page:{size:{width:11906, height:16838},
+            margin:{top:1134, bottom:1134, left:1134, right:1134}}
+    }, children}]
+  });
+}
+
+function fallbackDoc() {
+  const html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
+    '<style>' + DOC_CSS + '</style></head><body><div class="doc">' + docHtml() + '</div></body></html>';
+  save(new Blob(['﻿' + html], {type:'application/msword'}), fileName() + '.doc');
+  setStatus('docx library unavailable — exported .doc to your Downloads folder instead');
+}
+
+const DOC_CSS = `@page{size:A4;margin:20mm}
+.doc{font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.35;color:#000;background:#fff}
+.doc .t1{font-size:14pt;font-weight:700;text-align:center;margin:0 0 5px}
+.doc .t2{font-size:11pt;font-weight:700;text-align:center;margin:0 0 6px}
+.doc .lede{font-size:8pt;font-style:italic;text-align:center;margin:0 0 4px}
+.doc .meta{font-size:9pt;text-align:center;margin:0 0 4px}
+.doc .sec{background:#e9edf2;border:1px solid #c3cad3;font-weight:700;font-size:9.5pt;padding:4px 7px;margin:16px 0 8px}
+.doc .note{font-size:8.5pt;font-style:italic;margin:0 0 8px}
+.doc .cap{font-size:9pt;font-weight:700;margin:10px 0 4px}
+.doc p{margin:0 0 10px}
+.doc .checks span{margin-right:26px}
+.doc table.g{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:9.5pt}
+.doc table.g td,.doc table.g th{border:1px solid #b9c1cb;padding:3px 6px;font-size:inherit;text-align:left;vertical-align:top}
+.doc table.g th{background:#eef1f5;font-weight:700;font-size:.95em}
+.doc table.g td.lbl{background:#f6f8fa;font-weight:700}
+.doc .sigrow{display:grid;grid-template-columns:1fr 1fr;gap:34px;page-break-inside:avoid}
+.doc .sigcell .sigline{border-bottom:1px solid #000;height:1px;margin-bottom:4px}`;
+
+/* ------------------------------------------------------------------ *
+ *  PDF — laid out directly with jsPDF so the text stays selectable.
+ *  Everything here is measured from the top of the next element down,
+ *  in millimetres, because the tables have to know their own height.
+ * ------------------------------------------------------------------ */
+async function downloadPdf() {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { window.print(); return; }
+  const target = await pickTarget(fileName() + '.pdf');   // dialog first, as for the DOCX
+  if (target === CANCELLED) return;
+
+  const d = buildPdfDoc();
+  if (!d) { window.print(); return; }
+  save(d.output('blob'), fileName() + '.pdf', target);
+}
+
+function buildPdfDoc() {
+  const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFCtor) return null;
+
+  // Built-in PDF fonts are WinAnsi only — fold typography down to ASCII.
+  const ascii = s => String(s).replace(/[–—]/g, '-').replace(/[‘’‚]/g, "'")
+                              .replace(/[“”„]/g, '"').replace(/…/g, '...').replace(/ /g, ' ')
+                              // symbols a letterhead may carry (✉, ☎) have no glyph in the
+                              // built-in fonts and would draw as empty boxes
+                              .replace(/[^\x20-\xFF\n]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+
+  const lh = onLetterhead();
+  const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
+  const M = 20, W = 210 - M * 2, BOTTOM = 297 - (lh ? 25 : M);
+  const mm = pt => pt * 0.3528;                 // points to millimetres
+  const lineH = pt => mm(pt) * 1.28;            // one line of that size
+  const baseOf = pt => mm(pt) * 0.95;           // baseline, from the top of the line
+  let y = M;
+
+  const page = h => { if (y + h > BOTTOM) { d.addPage(); y = M; return true; } return false; };
+
+  /** Draw wrapped text from y down, advancing y. */
+  const put = (text, o = {}) => {
+    const size = o.size || 10, style = o.style || 'normal';
+    const x = o.x ?? M, width = o.width || W;
+    d.setFont('helvetica', style).setFontSize(size);
+    if (o.grey) d.setTextColor(34, 34, 34);
+    d.splitTextToSize(ascii(text), width).forEach(ln => {
+      page(lineH(size));
+      d.text(ln, o.align === 'center' ? 105 : x, y + baseOf(size),
+             o.align === 'center' ? {align:'center'} : undefined);
+      y += lineH(size);
+    });
+    d.setTextColor(0, 0, 0);
+  };
+
+  const sectionBar = text => {
+    const h = 6.2;
+    page(h + 10);                                // keep a heading with what follows
+    y += 3;
+    d.setFillColor(233, 237, 242).setDrawColor(195, 202, 211).setLineWidth(0.2);
+    d.rect(M, y, W, h, 'FD');
+    d.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(0, 0, 0);
+    d.text(ascii(text), M + 2.4, y + 4.3);
+    y += h + 3;
+  };
+
+  const checksRow = items => {
+    const size = 10, box = 3.1;
+    d.setFont('helvetica', 'normal').setFontSize(size).setTextColor(0, 0, 0);
+    page(lineH(size) + 3);
+    let x = M;
+    items.forEach(it => {
+      const label = ascii(it.label);
+      const w = box + 1.8 + d.getTextWidth(label) + 7;
+      if (x > M && x + w > M + W) { x = M; y += lineH(size) + 1.5; page(lineH(size)); }
+      const top = y + 1.2;
+      d.setDrawColor(0).setLineWidth(0.25);
+      d.rect(x, top, box, box, 'S');
+      if (it.on) {
+        d.setLineWidth(0.4);
+        d.line(x + 0.6, top + 0.6, x + box - 0.6, top + box - 0.6);
+        d.line(x + box - 0.6, top + 0.6, x + 0.6, top + box - 0.6);
+      }
+      d.text(label, x + box + 1.8, y + baseOf(size));
+      x += w;
+    });
+    y += lineH(size) + 3;
+  };
+
+  /** Left to itself jsPDF splits an over-long word wherever it runs out of
+      room, so a capacity like "Director/Shareholder" comes out as
+      "Director/Share" over "holder". Only a single word too wide for its
+      column is broken, and only at a slash — ordinary wrapping handles the
+      rest, and a heading like "ID verified (Y/N)" is left alone. */
+  const slashable = (text, width) => text.split('\n')
+    .map(part => part.split(' ')
+      .map(word => d.getTextWidth(word) <= width ? word : word.replace(/\/(?=\S)/g, '/\n'))
+      .join(' '))
+    .join('\n');
+
+  const gridTable = g => {
+    const fs = g.size || 9.5, pad = 1.5, minH = 5.4;
+    const cw = g.widths.map(w => w * W);
+    const xs = [];
+    cw.reduce((x, w) => { xs.push(x); return x + w; }, M);
+    // keep the caption and the heading row with at least one row of the table,
+    // rather than stranding them at the foot of a page
+    page((g.cap ? 6 : 0) + (g.head ? 9 : 0) + minH);
+    if (g.cap) { y += 2; put(g.cap, {size:9, style:'bold'}); y += 1; }
+
+    const row = (cells, head) => {
+      d.setFontSize(fs);
+      const bold = i => head || (g.label && i === 0);
+      const wrapped = cw.map((w, i) => {
+        d.setFont('helvetica', bold(i) ? 'bold' : 'normal');
+        return d.splitTextToSize(slashable(ascii(String(cells[i] ?? '')), w - pad * 2), w - pad * 2);
+      });
+      const h = Math.max(minH, Math.max(...wrapped.map(w => w.length)) * lineH(fs) + pad * 1.8);
+      if (page(h) && g.head && !head) row(g.head, true);
+      wrapped.forEach((lines, i) => {
+        const fill = head ? [238, 241, 245] : (g.label && i === 0 ? [246, 248, 250] : null);
+        d.setDrawColor(185, 193, 203).setLineWidth(0.2);
+        if (fill) { d.setFillColor(...fill); d.rect(xs[i], y, cw[i], h, 'FD'); }
+        else d.rect(xs[i], y, cw[i], h, 'S');
+        d.setFont('helvetica', bold(i) ? 'bold' : 'normal').setFontSize(fs).setTextColor(0, 0, 0);
+        lines.forEach((ln, j) => d.text(ln, xs[i] + pad, y + pad * 0.9 + baseOf(fs) + j * lineH(fs)));
+      });
+      y += h;
+    };
+
+    if (g.head) row(g.head, true);
+    g.rows.forEach(r => row(r, false));
+    y += 3;
+  };
+
+  const signBlock = b => {
+    const gap = sigSpace().mm;
+    page(gap + 16);
+    y += 2;
+    put(b.label);
+    const colW = W / 2, ruleW = colW - 12;
+    d.setFont('helvetica', 'normal').setFontSize(10).setTextColor(0, 0, 0);
+    if (b.date) d.text(ascii(b.date), M + colW, y + gap - 1.4);
+    y += gap;
+    d.setDrawColor(0).setLineWidth(0.3);
+    d.line(M, y, M + ruleW, y);
+    d.line(M + colW, y, M + colW + ruleW, y);
+    y += 1.2;
+    d.text(ascii((b.name || BLANK) + (b.position ? ' (' + b.position + ')' : '')), M, y + baseOf(10));
+    d.text('Date', M + colW, y + baseOf(10));
+    y += lineH(10) + 4;
+  };
+
+  if (lh) {
+    // logo left, header text right — first page only, as letterheads are laid out
+    let bottom = 12;
+    if (LH.logo) {
+      const {w, h} = LH.logoMm;
+      // 'FAST' deflates the image — without it jsPDF stores it raw (~450 KB)
+      d.addImage(LH.logo, LH.logo.includes('image/jpeg') ? 'JPEG' : 'PNG', M, 12, w, h, 'lhlogo', 'FAST');
+      bottom = 12 + h;
+    }
+    if (LH.lines.length) {
+      d.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(0, 32, 96);
+      LH.lines.forEach((t, i) => d.text(ascii(t), 210 - M, 15 + i * 4.8, {align:'right'}));
+      bottom = Math.max(bottom, 11 + LH.lines.length * 4.8);
+      d.setFont('helvetica', 'normal').setFontSize(10).setTextColor(0, 0, 0);
+    }
+    y = bottom + 12;
+  }
+
+  buildBlocks().forEach(b => {
+    switch (b.t) {
+      case 'title':   put(b.text, {size:14, style:'bold', align:'center'}); y += 1.5; break;
+      case 'sub':     put(b.text, {size:11, style:'bold', align:'center'}); y += 1.5; break;
+      case 'lede':    put(b.text, {size:8, style:'italic', align:'center', grey:true}); y += 1; break;
+      case 'meta':    put(b.text, {size:9, align:'center'}); y += 1; break;
+      case 'section': sectionBar(b.text); break;
+      case 'note':    put(b.text, {size:8.5, style:'italic', grey:true}); y += 2.5; break;
+      case 'para':    put(b.text); y += 3; break;
+      case 'checks':  checksRow(b.items); break;
+      case 'grid':    gridTable(b); break;
+      case 'sign':    signBlock(b); break;
+    }
+  });
+
+  if (lh && LH.footer) {
+    const pages = d.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      d.setPage(i);
+      d.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(0, 0, 0);
+      d.setDrawColor(207, 214, 222);
+      d.setLineWidth(0.2);
+      d.line(M, 281, 210 - M, 281);
+      d.text(ascii(LH.footer), M, 285.5, {maxWidth: W - 28});
+      d.text('Page ' + i + ' of ' + pages, 210 - M, 285.5, {align:'right'});
+    }
+  }
+
+  return d;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Files
+ * ------------------------------------------------------------------ */
+const fileName = () => 'Beneficial owner identification';
+
+/* Chrome and Edge can show the system Save dialog, so the user chooses the
+   folder and the name; other browsers can only drop the file in the
+   downloads folder. The dialog has to be opened while the click that asked
+   for it is still fresh, so callers pick the destination first and build
+   the document afterwards. */
+const CANCELLED = Symbol('cancelled');
+const FILE_TYPES = {
+  docx: {description:'Word document', accept:{'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx']}},
+  doc:  {description:'Word document', accept:{'application/msword':['.doc']}},
+  pdf:  {description:'PDF document',  accept:{'application/pdf':['.pdf']}},
+  json: {description:'Identification draft', accept:{'application/json':['.json']}}
+};
+async function pickTarget(name) {
+  if (!window.showSaveFilePicker) return null;         // no dialog in this browser
+  const type = FILE_TYPES[name.split('.').pop().toLowerCase()];
+  try {
+    return await showSaveFilePicker({suggestedName: name, types: type ? [type] : []});
+  } catch (e) {
+    if (e.name === 'AbortError') return CANCELLED;     // user closed the dialog
+    console.warn('File picker unavailable, falling back to download', e);
+    return null;
+  }
+}
+
+/** Write to the chosen file, or fall back to the downloads folder.
+    Returns the name written to, or null when it went to downloads. */
+async function save(data, name, target) {
+  if (target && target !== CANCELLED) {
+    try {
+      const w = await target.createWritable();
+      await w.write(data);
+      await w.close();
+      return target.name;
+    } catch (e) { console.error(e); }                  // fall through to a plain download
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return null;
+}
+
+let statusTimer;
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { el.textContent = ''; el.classList.remove('error'); }, isError ? 12000 : 4000);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Drafts
+ * ------------------------------------------------------------------ */
+const SIMPLE = ['docTitle', 'docSubtitle', 'matterRef', 'threshold', 'sigSpace',
+                'declText', 'byName', 'byPosition', 'byDate', 'notes'];
+const FIELD_DEFAULTS = {
+  docTitle:'CUSTOMER DUE DILIGENCE',
+  docSubtitle:'Beneficial Owner / Trustee / Company Identification Form',
+  threshold:'25', sigSpace:'generous', declText:DEFAULT_DECL
+};
+const setFields = f => SIMPLE.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = f[id] ?? FIELD_DEFAULTS[id] ?? '';
+});
+const snapshot = () => {
+  const fields = {};
+  SIMPLE.forEach(id => fields[id] = val(id));
+  fields.useLetterhead = !!onLetterhead();
+  return {tool: 'beneficial-owner', version: 1, fields, lists: S};
+};
+
+function applyDraft(d) {
+  setFields(d.fields || {});
+  document.getElementById('useLetterhead').checked = !!(d.fields || {}).useLetterhead;
+  const l = d.lists || {};
+  Object.keys(S).forEach(k => S[k] = l[k] || []);
+  // Officers and shareholders used to sit inside the company blocks; they are
+  // rows of the one register now, so an older draft folds them across as it
+  // loads. Removing them as we go keeps it from happening twice.
+  S.entities.forEach(e => ['directors', 'shareholders'].forEach(key => {
+    (e[key] || []).forEach(x => {
+      if (!x.name) return;
+      const role = key === 'directors' ? (x.role || 'Director') : 'Shareholder';
+      S.owners.push(Object.assign(newOwner(), {name:x.name, role, pct:x.pct || '',
+        interest: role + ' of ' + (e.name || 'the company')}));
+    });
+    delete e[key];
+  }));
+  renderAll();
+}
+
+/* Only a failure of the picker itself falls back to the <input> dialog —
+   read and parse failures are reported instead of silently re-prompting. */
+async function saveFile() {
+  const name = fileName() + '.json';
+  const target = await pickTarget(name);
+  if (target === CANCELLED) return;
+  const json = JSON.stringify(snapshot(), null, 2);
+  const where = await save(new Blob([json], {type:'application/json'}), name, target);
+  setStatus(where ? 'Saved to ' + where : 'Saved to your Downloads folder');
+}
+
+async function openFile() {
+  if (!window.showOpenFilePicker) { document.getElementById('fileInput').click(); return; }
+  let handle;
+  try {
+    [handle] = await showOpenFilePicker({
+      types:[{description:'Identification draft', accept:{'application/json':['.json']}}]});
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    console.warn('File picker unavailable, falling back to file input', e);
+    document.getElementById('fileInput').click();
+    return;
+  }
+  try {
+    loadDraftText(await (await handle.getFile()).text(), handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+function handleFilePick(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  const r = new FileReader();
+  r.onload  = () => loadDraftText(r.result, file.name);
+  r.onerror = () => setStatus('Could not read ' + file.name +
+                             ' — if it is stored in OneDrive, open it once to download it locally', true);
+  r.readAsText(file);
+}
+
+function loadDraftText(text, name) {
+  let d;
+  try { d = JSON.parse(text); }
+  catch { setStatus(name + ' is not a valid draft file (not JSON)', true); return; }
+  if (!d || typeof d !== 'object' || (!d.lists && !d.fields)) {
+    setStatus(name + ' does not look like an identification draft — nothing was changed', true);
+    return;
+  }
+  if (d.tool && d.tool !== 'beneficial-owner') {
+    setStatus(name + ' is a draft for another tool — nothing was changed', true);
+    return;
+  }
+  try { applyDraft(d); setStatus('Loaded ' + name); }
+  catch (e) { console.error(e); setStatus('Could not load ' + name + ' — ' + (e.message || e.name), true); }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Sample data — fictional entities and people, for trying the tool out.
+ * ------------------------------------------------------------------ */
+const entity   = (kind, o = {}) => Object.assign(newEntity(kind), o);
+const holder   = (name, pct) => ({id:uid(), name, pct});
+const trustee  = (type, name, acn = '') => ({id:uid(), type, name, acn});
+const owner    = (name, role, dob, shares, pct, interest, verified = 'Y') =>
+  ({id:uid(), name, role, dob, shares, pct, interest, verified});
+
+const SAMPLES = {
+  trust: {
+    label: 'Trust with corporate trustee',
+    entities: [
+      entity('trust', {
+        trustName:'Kowhai Super Property Trust', trustType:'Bare trust / LRBA holding trust',
+        trustDate:'24/07/2025', jurisdiction:'South Australia',
+        settlors:'', appointors:'',
+        beneficiaries:'KOWHAI SUPER PTY LTD (ACN: 123 456 789) ATF KOWHAI FAMILY SUPER FUND',
+        trustees:[trustee('corporate', 'KOWHAI SUPER PROPERTY PTY LTD', '123 456 780')]}),
+      entity('company', {
+        name:'KOWHAI SUPER PROPERTY PTY LTD', acn:'123 456 780', abn:'12 123 456 780',
+        regOffice:'12 Marlow Street, Prospect SA 5082',
+        ppob:'12 Marlow Street, Prospect SA 5082'})
+    ],
+    owners: [
+      owner('Dana Marie Whitlock', 'Director/Shareholder', '09/08/1995', '50 ordinary', '50%',
+            'Director/shareholder of beneficiary and trustee company'),
+      owner('Toby Hale Whitlock', 'Director/Shareholder', '08/03/1989', '50 ordinary', '50%',
+            'Director/shareholder of beneficiary and trustee company')
+    ]
+  },
+  company: {
+    label: 'Company, two shareholders',
+    entities: [
+      entity('company', {
+        name:'DTS15 PROJECTS PTY LTD', acn:'123 132 123', abn:'55 123 132 123',
+        regOffice:'Suite 4, 210 Greenhill Road, Eastwood SA 5063',
+        ppob:'Suite 4, 210 Greenhill Road, Eastwood SA 5063'})
+    ],
+    owners: [
+      owner('Vikram Bansal', 'Director/Shareholder', '14/02/1981', '60 ordinary', '60%',
+            'Director and majority shareholder of DTS15 PROJECTS PTY LTD'),
+      owner('Shabnam Jindal', 'Director/Secretary', '02/11/1984', '40 ordinary', '40%',
+            'Director/secretary and shareholder of DTS15 PROJECTS PTY LTD')
+    ]
+  },
+  partnership: {
+    label: 'Partnership',
+    entities: [
+      entity('partnership', {
+        firmName:'Ellery & Nguyen Family Partnership', abn:'77 654 321 000',
+        businessAddress:'14 Rosewood Drive, Golden Grove SA 5125',
+        partners:[holder('Nathan James Ellery', '50%'), holder('Mai Linh Nguyen', '50%')]})
+    ],
+    owners: [
+      owner('Nathan James Ellery', 'Partner', '21/06/1978', '', '50%',
+            'Partner of Ellery & Nguyen Family Partnership'),
+      owner('Mai Linh Nguyen', 'Partner', '03/12/1980', '', '50%',
+            'Partner of Ellery & Nguyen Family Partnership')
+    ]
+  }
+};
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  if (!s) return;
+  const keep = {sigSpace: val('sigSpace'), matterRef: val('matterRef'),
+                byName: val('byName'), byPosition: val('byPosition')};
+  setFields(keep);
+  S.entities = JSON.parse(JSON.stringify(s.entities));
+  S.owners   = JSON.parse(JSON.stringify(s.owners));
+  renderAll();
+  setStatus('Loaded sample: ' + s.label);
+}
+
+function resetAll() {
+  Object.keys(S).forEach(k => S[k] = []);
+  setFields({sigSpace: val('sigSpace')});
+  seed();
+  renderAll();
+}
+
+function seed() {
+  S.entities.push(newEntity('company'));
+  S.owners.push(newOwner());
+}
+
+loadStoredLetterhead();
+setFields({});
+seed();
+renderAll();
+</script>
+</body>
+</html>
