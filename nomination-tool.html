@@ -64,7 +64,7 @@
   .doc .lhinfo{font-weight:700;font-size:10.5pt;line-height:1.55;color:#002060;white-space:nowrap}
   .doc .lhfoot{margin-top:34px;padding-top:6px;border-top:1px solid #cfd6de;display:flex;
                justify-content:space-between;gap:16px;font-size:9pt;color:#000}
-  .doc .sigrow{display:grid;gap:26px;margin:20px 0 12px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigrow{display:grid;gap:26px;margin:6px 0 12px;page-break-inside:avoid;break-inside:avoid}
   .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
   .doc .sigbox{border:1px solid #000;margin-bottom:4px}
   .doc .signame{font-weight:700}
@@ -952,7 +952,9 @@ function buildDocxDoc() {
       return row;
     };
     return [
-      new Paragraph({spacing:{before:240}, children:[]}),
+      // Word merges two tables that touch, so rows are separated by a
+      // paragraph — kept tiny, or it opens a hole above every box.
+      new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}),
       new Table({
         width:{size: TEXT_WIDTH, type:WidthType.DXA},
         borders: noBorders,
@@ -969,6 +971,9 @@ function buildDocxDoc() {
             children: lay(c => new TableCell({
               width:{size:cw, type:WidthType.DXA},
               borders: noBorders,
+              // Air below the names, so a following row of boxes does not
+              // sit right on top of them.
+              margins:{bottom:120},
               children: c ? sigLabels(c, cols > 1 ? 16 : 34) : [new Paragraph('')]
             }))
           })
@@ -1035,7 +1040,7 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc h2{text-align:center;font-size:10pt;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:0 0 16px}
 .doc p{margin:0 0 9px;text-align:justify}
 .doc p.plain{text-align:left}
-.doc .sigrow{display:grid;gap:26px;margin:20px 0 12px;page-break-inside:avoid}
+.doc .sigrow{display:grid;gap:26px;margin:6px 0 12px;page-break-inside:avoid}
 .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
 .doc .sigbox{border:1px solid #000;margin-bottom:4px}
 .doc .signame{font-weight:700}
@@ -1134,7 +1139,7 @@ function buildPdfDoc() {
       need(gap + 13 + (sigDated() ? LINE + 3 : 0) + (sigBoxed() ? 6 : 0));
       d.setLineWidth(0.3);
       if (sigBoxed()) {
-        y += 6;                                       // air above the boxes
+        y += 1.5;                                     // a little air above the boxes
         b.cells.forEach((c, i) => d.rect(M + i * colW, y, boxW, gap));
         y += gap + 4.4;
       } else {
