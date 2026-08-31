@@ -64,8 +64,9 @@
   .doc .lhinfo{font-weight:700;font-size:10.5pt;line-height:1.55;color:#002060;white-space:nowrap}
   .doc .lhfoot{margin-top:34px;padding-top:6px;border-top:1px solid #cfd6de;display:flex;
                justify-content:space-between;gap:16px;font-size:9pt;color:#000}
-  .doc .sigblock{margin:20px 0 12px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigrow{display:grid;gap:26px;margin:20px 0 12px;page-break-inside:avoid;break-inside:avoid}
   .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
+  .doc .sigbox{border:1px solid #000;margin-bottom:4px}
   .doc .signame{font-weight:700}
   .doc .sigrole{font-style:italic}
   .doc .sigdate{margin-top:9px}
@@ -168,7 +169,13 @@
         browser, and shared with the other tools.</div>
       <label>Document title</label>
       <input id="docTitle" value="DIRECTION TO TRANSFER LAND TO NOMINEE" oninput="render()">
-      <label>Space above each signing line</label>
+      <label>Signature style</label>
+      <select id="sigStyle" onchange="render()">
+        <option value="box2" selected>Boxes — two across</option>
+        <option value="box1">Boxes — one per row</option>
+        <option value="line">Ruled lines — one per row</option>
+      </select>
+      <label>Space for each signature</label>
       <select id="sigSpace" onchange="render()">
         <option value="compact">Compact — fits the most on a page</option>
         <option value="standard" selected>Standard</option>
@@ -584,8 +591,9 @@ async function parseLetterheadDocx(buf, name) {
 }
 
 
-/* Vertical room above each signing rule, so e-signature platforms have
-   somewhere to anchor a signature field. px = preview, twips = DOCX, mm = PDF. */
+/* Vertical room for each signature — above the rule, or the height of the
+   box — so e-signature platforms have somewhere to anchor a signature
+   field. px = preview, twips = DOCX, mm = PDF. */
 const SIG_SPACE = {
   compact:  {px: 20, twips: 300,  mm: 7},
   standard: {px: 42, twips: 640,  mm: 13},
@@ -596,6 +604,13 @@ const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
 /* Optional "Date: ______" rule beneath each signature, for signatories who
    date their own signing rather than relying on a single execution date. */
 const sigDated = () => !!document.getElementById('sigDate')?.checked;
+
+/* Signatures sit on a ruled line, or inside a box an e-signature field can
+   be dropped into. Boxes can pair up two to a row, which keeps a four
+   director execution on one page. */
+const sigStyle = () => val('sigStyle') || 'box2';
+const sigBoxed = () => sigStyle() !== 'line';
+const perRow   = () => (sigStyle() === 'box2' ? 2 : 1);
 const clean = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
 const filled = list => list.filter(x => x.name || x.address);
 
@@ -745,7 +760,7 @@ function buildBlocks() {
   p('The Contract and the Land shall be assigned to ' + (partiesPhrase(S.nominees) || BLANK) + '.');
 
   p('SIGNED by the said', 'exec');
-  directors.forEach(s => B.push({t:'sig', ...s}));
+  pushSigRows(B, directors);
 
   const accepters = allSignatories(S.nominees);
   // The direction is given by the purchaser's signatories, not the entity in the
@@ -755,9 +770,15 @@ function buildBlocks() {
     ', and accept assignment of the Contract and the Land.');
 
   p('SIGNED by the said', 'exec');
-  accepters.forEach(s => B.push({t:'sig', ...s}));
+  pushSigRows(B, accepters);
 
   return B;
+}
+
+/** Signature blocks, one or two to a row depending on the chosen style. */
+function pushSigRows(B, signers) {
+  const n = perRow();
+  for (let i = 0; i < signers.length; i += n) B.push({t:'sigrow', cells: signers.slice(i, i + n)});
 }
 
 /* ------------------------------------------------------------------ *
@@ -778,14 +799,20 @@ function docHtml() {
   let afterSig = false;
   const body = buildBlocks().map(b => {
     if (b.t === 'title') return '<h2>' + esc(b.text) + '</h2>';
-    if (b.t === 'sig') {
+    if (b.t === 'sigrow') {
       afterSig = true;
-      return `<div class="sigblock" style="margin-top:${gap}px">
-        <div class="sigline"></div>
-        <div class="signame">${esc(b.name || BLANK)}</div>
-        ${b.role ? '<div class="sigrole">(' + esc(b.role) + ')</div>' : ''}
-        ${sigDated() ? '<div class="sigdate">Date:&nbsp;<span class="sigdateline"></span></div>' : ''}
-      </div>`;
+      const cols = perRow();
+      const dateW = cols > 1 ? 68 : 34;
+      const cells = b.cells.map(c => `<div class="sigcell">
+          ${sigBoxed() ? `<div class="sigbox" style="height:${gap}px"></div>` : '<div class="sigline"></div>'}
+          <div class="signame">${esc(c.name || BLANK)}</div>
+          ${c.role ? '<div class="sigrole">(' + esc(c.role) + ')</div>' : ''}
+          ${sigDated() ? `<div class="sigdate">Date:&nbsp;<span class="sigdateline" style="width:${dateW}%"></span></div>` : ''}
+        </div>`).join('');
+      // A ruled line takes its room above; a box is the room, so it only
+      // needs the standing margin.
+      const top = sigBoxed() ? '' : `margin-top:${gap}px;`;
+      return `<div class="sigrow" style="${top}grid-template-columns:repeat(${cols},1fr)">${cells}</div>`;
     }
     const cls = [b.cls === 'exec' ? 'plain execution' : (b.cls === 'plain' ? 'plain' : ''),
                  afterSig ? 'resume' : ''].filter(Boolean).join(' ');
@@ -883,9 +910,72 @@ async function pourIntoLetterhead(generated) {
 
 function buildDocxDoc() {
   if (typeof docx === 'undefined') return null;
-  const {Document, Paragraph, TextRun, AlignmentType, BorderStyle} = docx;
+  const {Document, Paragraph, TextRun, AlignmentType, BorderStyle,
+         Table, TableRow, TableCell, WidthType, HeightRule} = docx;
   const children = [];
   let afterSig = false;
+
+  const NONE = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+  const noBorders = {top:NONE, bottom:NONE, left:NONE, right:NONE, insideHorizontal:NONE, insideVertical:NONE};
+  const SOLID = {style:BorderStyle.SINGLE, size:6, color:'000000'};
+
+  /** Name, capacity and date line — printed under the box or the rule. */
+  const sigLabels = (c, dateSpaces) => {
+    const out = [new Paragraph({spacing:{after:0}, children:[new TextRun({text:c.name || BLANK, bold:true})]})];
+    if (c.role) out.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120},
+                                        children:[new TextRun({text:'(' + c.role + ')', italics:true})]}));
+    if (sigDated()) {
+      // Underlined non-breaking spaces, so the rule stays put when the
+      // document is edited in Word.
+      out.push(new Paragraph({spacing:{before:120, after:120},
+        children:[new TextRun({text:'Date:\u00A0'}),
+                  new TextRun({text:'\u00A0'.repeat(dateSpaces), underline:{}})]}));
+    }
+    return out;
+  };
+
+  /* One table per row of boxes: an empty bordered cell of the chosen height
+     over an unbordered cell carrying the name. A narrow spacer column keeps
+     two boxes apart without their borders touching. */
+  const sigBoxTable = cells => {
+    const cols = perRow();
+    const gutter = cols > 1 ? 400 : 0;
+    const cw = Math.floor((TEXT_WIDTH - gutter * (cols - 1)) / cols);
+    const spacer = () => new TableCell({width:{size:gutter, type:WidthType.DXA},
+                                        borders:noBorders, children:[new Paragraph('')]});
+    const lay = make => {
+      const row = [];
+      for (let i = 0; i < cols; i++) {
+        if (i) row.push(spacer());
+        row.push(make(cells[i]));            // a missing cell pads a short row
+      }
+      return row;
+    };
+    return [
+      new Paragraph({spacing:{before:240}, children:[]}),
+      new Table({
+        width:{size: TEXT_WIDTH, type:WidthType.DXA},
+        borders: noBorders,
+        rows:[
+          new TableRow({
+            height:{value: sigSpace().twips, rule: HeightRule.ATLEAST},
+            children: lay(c => new TableCell({
+              width:{size:cw, type:WidthType.DXA},
+              borders: c ? {top:SOLID, bottom:SOLID, left:SOLID, right:SOLID} : noBorders,
+              children:[new Paragraph('')]
+            }))
+          }),
+          new TableRow({
+            children: lay(c => new TableCell({
+              width:{size:cw, type:WidthType.DXA},
+              borders: noBorders,
+              children: c ? sigLabels(c, cols > 1 ? 16 : 34) : [new Paragraph('')]
+            }))
+          })
+        ]
+      })
+    ];
+  };
 
   buildBlocks().forEach(b => {
     if (b.t === 'title') {
@@ -895,7 +985,9 @@ function buildDocxDoc() {
       }));
       return;
     }
-    if (b.t === 'sig') {
+    if (b.t === 'sigrow') {
+      afterSig = true;
+      if (sigBoxed()) { children.push(...sigBoxTable(b.cells)); return; }
       // Ruled signing line, then the name in bold with the capacity beneath it.
       children.push(new Paragraph({spacing:{before: sigSpace().twips}, children:[]}));
       children.push(new Paragraph({
@@ -906,18 +998,7 @@ function buildDocxDoc() {
         border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
         children:[new TextRun({text:''})]
       }));
-      children.push(new Paragraph({spacing:{after:0}, children:[new TextRun({text:b.name || BLANK, bold:true})]}));
-      if (b.role) children.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120}, children:[new TextRun({text:'(' + b.role + ')', italics:true})]}));
-      if (sigDated()) {
-        // Underlined non-breaking spaces, so the rule stays put when the
-        // document is edited in Word.
-        children.push(new Paragraph({
-          spacing:{before:120, after:120},
-          children:[new TextRun({text:'Date:\u00A0'}),
-                    new TextRun({text:'\u00A0'.repeat(34), underline:{}})]
-        }));
-      }
-      afterSig = true;
+      sigLabels(b.cells[0], 34).forEach(pr => children.push(pr));
       return;
     }
     children.push(new Paragraph({
@@ -954,8 +1035,9 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc h2{text-align:center;font-size:10pt;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:0 0 16px}
 .doc p{margin:0 0 9px;text-align:justify}
 .doc p.plain{text-align:left}
-.doc .sigblock{margin:20px 0 12px;page-break-inside:avoid}
+.doc .sigrow{display:grid;gap:26px;margin:20px 0 12px;page-break-inside:avoid}
 .doc .sigline{border-bottom:1px solid #000;width:62%;height:1px;margin-bottom:4px}
+.doc .sigbox{border:1px solid #000;margin-bottom:4px}
 .doc .signame{font-weight:700}
 .doc .sigrole{font-style:italic}
 .doc .sigdate{margin-top:9px}
@@ -1044,28 +1126,39 @@ function buildPdfDoc() {
       d.setFont('helvetica', 'normal');
       return;
     }
-    if (b.t === 'sig') {
+    if (b.t === 'sigrow') {
       const gap = sigSpace().mm;
-      need(gap + 13 + (sigDated() ? LINE + 3 : 0));
-      y += gap;
+      const cols = perRow();
+      const colW = W / cols;
+      const boxW = colW - (cols > 1 ? 8 : 0);        // gutter between two boxes
+      need(gap + 13 + (sigDated() ? LINE + 3 : 0) + (sigBoxed() ? 6 : 0));
       d.setLineWidth(0.3);
-      d.line(M, y, M + W * 0.62, y);
-      y += 4.4;
+      if (sigBoxed()) {
+        y += 6;                                       // air above the boxes
+        b.cells.forEach((c, i) => d.rect(M + i * colW, y, boxW, gap));
+        y += gap + 4.4;
+      } else {
+        y += gap;
+        d.line(M, y, M + W * 0.62, y);                // the ruled signing line
+        y += 4.4;
+      }
       d.setFont('helvetica', 'bold');
-      d.text(ascii(b.name || BLANK), M, y);
+      b.cells.forEach((c, i) => d.text(ascii(c.name || BLANK), M + i * colW, y));
       y += LINE;
-      if (b.role) {
+      if (b.cells.some(c => c.role)) {
         d.setFont('helvetica', 'italic');
-        d.text(ascii('(' + b.role + ')'), M, y);
+        b.cells.forEach((c, i) => { if (c.role) d.text(ascii('(' + c.role + ')'), M + i * colW, y); });
         y += LINE;
       }
       d.setFont('helvetica', 'normal');
       if (sigDated()) {
         y += 3;
-        d.text('Date:', M, y);
-        const x = M + d.getTextWidth('Date:') + 2;
-        d.setLineWidth(0.3);
-        d.line(x, y + 0.6, M + W * 0.42, y + 0.6);
+        const label = 'Date:';
+        b.cells.forEach((c, i) => {
+          const x = M + i * colW;
+          d.text(label, x, y);
+          d.line(x + d.getTextWidth(label) + 2, y + 0.6, x + boxW * (cols > 1 ? 0.92 : 0.68), y + 0.6);
+        });
         y += LINE;
       }
       afterSig = true;
@@ -1153,7 +1246,7 @@ function setStatus(msg, isError = false) {
                            isError ? 12000 : 4000);   // errors stay long enough to read
 }
 
-const SIMPLE = ['contractType','contractTypeOther','contractDate','docTitle','sigSpace'];
+const SIMPLE = ['contractType','contractTypeOther','contractDate','docTitle','sigSpace','sigStyle'];
 const snapshot = () => {
   const fields = {};
   SIMPLE.forEach(id => fields[id] = val(id));
@@ -1162,7 +1255,7 @@ const snapshot = () => {
   return {tool: 'nomination', version: 2, fields, lists: S};
 };
 
-const FIELD_DEFAULTS = {sigSpace:'standard', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
+const FIELD_DEFAULTS = {sigSpace:'standard', sigStyle:'box2', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
 const setFields = f => SIMPLE.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
@@ -1357,7 +1450,7 @@ const SAMPLES = {
 function loadSample(key) {
   const s = SAMPLES[key];
   if (!s) return;
-  setFields({...s.fields, sigSpace: val('sigSpace')});   // keep the chosen signing space
+  setFields({...s.fields, sigSpace: val('sigSpace'), sigStyle: val('sigStyle')});   // keep the chosen signing style
   ['vendors', 'purchasers', 'nominees', 'properties'].forEach(k => S[k] = JSON.parse(JSON.stringify(s[k])));
   renderAll();
   setStatus('Loaded sample: ' + s.label);
@@ -1365,7 +1458,7 @@ function loadSample(key) {
 
 function resetAll() {
   Object.keys(S).forEach(k => S[k] = []);
-  setFields({sigSpace: val('sigSpace')});
+  setFields({sigSpace: val('sigSpace'), sigStyle: val('sigStyle')});
   seed();
 }
 
