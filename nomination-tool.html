@@ -178,8 +178,8 @@
       <label>Space for each signature</label>
       <select id="sigSpace" onchange="render()">
         <option value="compact">Compact — fits the most on a page</option>
-        <option value="standard" selected>Standard</option>
-        <option value="generous">Generous — room for DocuSign fields</option>
+        <option value="standard">Standard</option>
+        <option value="generous" selected>Generous — room for DocuSign fields</option>
         <option value="wide">Wide — full signature box</option>
       </select>
       <label class="check"><input type="checkbox" id="sigDate" checked onchange="render()">
@@ -600,7 +600,7 @@ const SIG_SPACE = {
   generous: {px: 68, twips: 1040, mm: 21},
   wide:     {px: 96, twips: 1480, mm: 30}
 };
-const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.standard;
+const sigSpace = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
 /* Optional "Date: ______" rule beneath each signature, for signatories who
    date their own signing rather than relying on a single execution date. */
 const sigDated = () => !!document.getElementById('sigDate')?.checked;
@@ -1260,7 +1260,7 @@ const snapshot = () => {
   return {tool: 'nomination', version: 2, fields, lists: S};
 };
 
-const FIELD_DEFAULTS = {sigSpace:'standard', sigStyle:'box2', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
+const FIELD_DEFAULTS = {sigSpace:'generous', sigStyle:'box2', docTitle:'DIRECTION TO TRANSFER LAND TO NOMINEE', contractType:'Residential'};
 const setFields = f => SIMPLE.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = f[id] || FIELD_DEFAULTS[id] || '';
