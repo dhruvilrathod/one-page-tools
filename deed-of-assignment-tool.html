@@ -1764,10 +1764,14 @@ function buildDocxDoc() {
          under the addend lands where it would if it were written by hand. */
       case 'sum': {
         const under = {top:NONE, left:NONE, right:NONE, bottom:SOLID};
-        const cell = (size, text, ruled, align) => new TableCell({
+        /* The figure column is ruled off across the whole column, as a sum
+           is; the label is only underlined as far as its words go, or the
+           rule runs on to the right margin. */
+        const cell = (size, text, o = {}) => new TableCell({
           width:{size, type:WidthType.DXA},
-          borders: ruled ? under : noBorders,
-          children:[new Paragraph({spacing:{after:0}, alignment: align, children:[run(text)]})]
+          borders: o.ruled ? under : noBorders,
+          children:[new Paragraph({spacing:{after:0},
+                                   children:[run(text, o.underline ? {underline:{}} : {})]})]
         });
         const gutter = tw(6), opW = tw(8), figW = tw(28);
         children.push(new Table({
@@ -1775,10 +1779,10 @@ function buildDocxDoc() {
           indent:{size: tw(b.indent), type:WidthType.DXA},
           borders: noBorders,
           rows: b.rows.map(r => new TableRow({children:[
-            cell(opW, r.op, false),
-            cell(figW, r.amount, r.rule),
-            cell(gutter, '', false),
-            cell(TEXT_WIDTH - tw(b.indent) - opW - figW - gutter, r.label, r.rule)
+            cell(opW, r.op),
+            cell(figW, r.amount, {ruled: r.rule}),
+            cell(gutter, ''),
+            cell(TEXT_WIDTH - tw(b.indent) - opW - figW - gutter, r.label, {underline: r.rule})
           ]}))
         }));
         children.push(new Paragraph({spacing:{after:160}, children:[new TextRun({text:'', size:8})]}));
@@ -1982,7 +1986,34 @@ function buildPdfDoc() {
 
   const writeLines = (text, x, width, justify, o) => draw(layout(text, width, o), x, width, justify);
 
-  buildBlocks().forEach(b => {
+  /* Heights of the pieces of an execution block, worked out with the same
+     arithmetic that draws them — so the room reserved for one is what it
+     actually takes, rather than a guess that pushes it onto a fresh page. */
+  const sigRowHeight = cells => {
+    const cols = perRow();
+    const boxW = W / cols - (cols > 1 ? 8 : 0);
+    d.setFont('helvetica', 'italic');
+    const capLines = Math.max(...cells.map(c =>
+      c.cap ? d.splitTextToSize(ascii(c.cap), boxW).length : 0), 0);
+    d.setFont('helvetica', 'normal');
+    return (sigBoxed() ? 1.5 : 0) + sigSpace().mm + 4.4 + LINE + capLines * LINE +
+           (sigDated() ? LINE + 3 : 0) + 4;
+  };
+  const witnessHeight = () => 2 + LINE + sigSpace().mm * 0.6 + 8;
+
+  /** Everything from the EXECUTED line to the witness rule that closes it. */
+  const execHeight = (all, i) => {
+    let h = LINE + (all[i].bottom || 0);
+    for (let j = i + 1; j < all.length; j++) {
+      const n = all[j];
+      if (n.t === 'sigrow')      h += sigRowHeight(n.cells);
+      else if (n.t === 'witness') { h += witnessHeight(); break; }
+      else break;
+    }
+    return h;
+  };
+
+  buildBlocks().forEach((b, i, all) => {
     switch (b.t) {
       case 'title': {
         d.setFont('helvetica', 'bold').setFontSize(SIZE + 0.5);
@@ -1993,14 +2024,19 @@ function buildPdfDoc() {
         return;
       }
       case 'twocol': {
-        const x2 = M + 33;
-        const lines = b.lines.map(l => layout(l, W - 33));
-        need(LINE * lines.reduce((n, ls) => n + ls.length, 0));
+        // The label wraps inside its own column — "Assignee's Email(s):" is
+        // wider than the column, and drawn as one string it would run under
+        // the addresses beside it.
+        const LAB = 31, x2 = M + 33;
+        const body = b.lines.map(l => layout(l, W - 33));
+        const labs = b.labels.map(l => layout(l, LAB));
+        const rows = ls => ls.reduce((n, l) => n + l.length, 0);
+        need(LINE * Math.max(rows(body), rows(labs)));
         const top = y;
-        lines.forEach(ls => draw(ls, x2, W - 33, false));
+        body.forEach(ls => draw(ls, x2, W - 33, false));
         const after = y;
         y = top;
-        b.labels.forEach(l => { d.text(ascii(l), M, y); y += LINE; });
+        labs.forEach(ls => draw(ls, M, LAB, false));
         y = Math.max(after, y) + 3;
         return;
       }
@@ -2050,7 +2086,7 @@ function buildPdfDoc() {
         const capLines = Math.max(...b.cells.map(c =>
           c.cap ? d.splitTextToSize(ascii(c.cap), boxW).length : 0), 0);
         d.setFont('helvetica', 'normal');
-        need(gap + 8 + capLines * LINE + (sigDated() ? LINE + 3 : 0));
+        need(sigRowHeight(b.cells));
         d.setLineWidth(0.3);
         if (sigBoxed()) {
           y += 1.5;
@@ -2095,7 +2131,7 @@ function buildPdfDoc() {
         const gap = sigSpace().mm * 0.6;
         const colW = W / b.grid;
         const boxW = colW - (b.grid > 1 ? 8 : 0);
-        need(gap + LINE * 2 + 8);
+        need(witnessHeight());          // the same figure `execHeight` reserved
         y += 2;
         d.text('in the presence of:', M, y);
         y += LINE;
@@ -2108,10 +2144,8 @@ function buildPdfDoc() {
       }
       default: {
         if (b.top) y += b.top;
-        // Room for the whole execution block — heading, box, name, capacity,
-        // date line and the witness rule — or start it on a fresh page.
-        if (b.hold) need(LINE * 5 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0) +
-                         (witnessed() ? sigSpace().mm * 0.6 + LINE * 2 + 10 : 0));
+        // Room for the whole execution block, or start it on a fresh page.
+        if (b.hold) need(execHeight(all, i));
         const x = M + (b.indent || 0);
         writeLines(b.text, x, W - (b.indent || 0), b.cls !== 'plain');
         y += b.bottom !== undefined ? b.bottom : 2;
