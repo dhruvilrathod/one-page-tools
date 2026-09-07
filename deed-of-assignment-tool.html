@@ -63,9 +63,15 @@
   .doc .twocol{display:flex;gap:0;margin:0 0 9px}
   .doc .twocol .lab{width:33mm;flex:none;white-space:pre-line}
   .doc .twocol .body{flex:1;white-space:pre-line}
-  .doc .bracket{display:flex;margin:0}
-  .doc .bracket .t{width:80mm;flex:none}
-  .doc .clausehead{font-weight:700;margin:16px 0 8px;text-align:left;page-break-after:avoid;break-after:avoid}
+  .doc sup{font-size:.72em;line-height:0}
+  .doc table.sum{border-collapse:collapse;margin:0 0 12px}
+  .doc table.sum td{padding:1px 0;vertical-align:bottom;white-space:nowrap}
+  .doc table.sum td.op{width:8mm}
+  .doc table.sum td.fig{width:34mm;padding-right:8mm}
+  .doc table.sum td span{display:inline-block;padding-bottom:2px}
+  .doc table.sum td.fig span{width:100%}
+  .doc table.sum tr.ruled td span{border-bottom:1px solid #000}
+  .doc .clausehead{font-weight:700;margin:17px 0 9px;text-align:left;page-break-after:avoid;break-after:avoid}
   .doc .lh{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:0 0 30px}
   .doc .lh img{width:51.5mm;height:auto;display:block}
   .doc .lhinfo{font-weight:700;font-size:10.5pt;line-height:1.55;color:#002060;white-space:nowrap}
@@ -75,7 +81,7 @@
   .doc .sigline{border-bottom:1px solid #000;width:72%;height:1px;margin-bottom:4px}
   .doc .sigbox{border:1px solid #000;margin-bottom:4px}
   .doc .signame{font-weight:700}
-  .doc .sigcap{font-size:.95em}
+  .doc .sigcap{font-style:italic}
   .doc .sigdate{margin-top:9px}
   .doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}
   @media print{
@@ -383,6 +389,35 @@ function setExtra(id, v)        { const e = S.extras.find(x => x.id === id); if 
  * ------------------------------------------------------------------ */
 const BLANK = '_'.repeat(20);
 
+/* ---- inline formatting --------------------------------------------- *
+ * The document is assembled as plain strings, so a phrase can be built by
+ * concatenation the way it reads. Two pairs of invisible markers survive
+ * that concatenation and are split back out into styled runs at the point
+ * something is drawn — once for the preview, once for Word, once for the
+ * PDF — so nothing downstream has to know how a phrase was put together.
+ * ------------------------------------------------------------------- */
+const SUP_A = '\u0001', SUP_B = '\u0002', BOLD_A = '\u0003', BOLD_B = '\u0004';
+const sup  = s => SUP_A + s + SUP_B;
+const bold = s => BOLD_A + s + BOLD_B;
+/** The text as it reads, markers removed — for echoes and for measuring. */
+const plain = s => String(s ?? '').replace(/[\u0001-\u0004]/g, '');
+
+/** Split a marked-up string into runs: [{text, bold, sup}, …] */
+function toRuns(text) {
+  const out = [];
+  let b = false, s = false, buf = '';
+  const flush = () => { if (buf) { out.push({text: buf, bold: b, sup: s}); buf = ''; } };
+  for (const ch of String(text ?? '')) {
+    if      (ch === BOLD_A) { flush(); b = true; }
+    else if (ch === BOLD_B) { flush(); b = false; }
+    else if (ch === SUP_A)  { flush(); s = true; }
+    else if (ch === SUP_B)  { flush(); s = false; }
+    else buf += ch;
+  }
+  flush();
+  return out.length ? out : [{text:'', bold:false, sup:false}];
+}
+
 /** Amounts are typed however the user likes — "2,500,000", "$2.5m" is not
     accepted, but commas, spaces and a dollar sign are all ignored. */
 function num(text) {
@@ -428,14 +463,16 @@ const amtWords = text => amt(text) + ' (' + inWords(text) + ')';
 
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
-const ordinal = d => d + (['th','st','nd','rd'][(d % 100 - 20) % 10] || ['th','st','nd','rd'][d % 100] || 'th');
-/** "11th of May 2026" — the form every date takes in this deed. */
-function longDate(raw) {
+const SUFFIX = d => ['th','st','nd','rd'][(d % 100 - 20) % 10] || ['th','st','nd','rd'][d % 100] || 'th';
+/** "11th of May 2026", the suffix raised — the form dates take in the body. */
+function longDate(raw, joiner = ' of ') {
   if (!raw) return BLANK;
   const [y, m, d] = String(raw).split('-').map(Number);
   if (!y || !m || !d) return BLANK;
-  return ordinal(d) + ' of ' + MONTHS[m - 1] + ' ' + y;
+  return d + sup(SUFFIX(d)) + joiner + MONTHS[m - 1] + ' ' + y;
 }
+/** "16th day of September 2025" — the deed's own date reads a little longer. */
+const deedDate = raw => longDate(raw, ' day of ');
 
 /* ------------------------------------------------------------------ *
  *  Form rendering
@@ -921,8 +958,10 @@ function joinList(arr) {
   return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
 }
 
-/** "A and B of 5 X St" — people sharing an address are named together. */
-function peoplePhrase(people) {
+/** "A and B of 5 X St" — people sharing an address are named together.
+    `em` styles the names alone, so the parties can be bold where the deed
+    introduces them and plain where the recitals refer back to them. */
+function peoplePhrase(people, em = String) {
   const groups = [];
   filled(people).forEach(p => {
     const addr = clean(p.address);
@@ -930,7 +969,7 @@ function peoplePhrase(people) {
     if (last && last.addr === addr) last.names.push(p.name);
     else groups.push({addr, names: [p.name]});
   });
-  return joinList(groups.map(g => joinList(g.names) + (g.addr ? ' of ' + g.addr : '')));
+  return joinList(groups.map(g => em(joinList(g.names)) + (g.addr ? ' of ' + g.addr : '')));
 }
 
 function companyName(p) {
@@ -943,25 +982,25 @@ function companyName(p) {
 }
 
 /** The entity as it is named in the deed, address included. */
-function partyDescription(p) {
+function partyDescription(p, em = String) {
   const nom = p.nominee ? ' and/or Nominee' : '';
   const at  = a => (clean(a) ? ' of ' + clean(a) : '');
-  if (p.kind === 'individual')      return p.name || p.address ? p.name + nom + at(p.address) : '';
-  if (p.kind === 'company')         return companyName(p) + nom + at(p.address);
-  if (p.kind === 'trust_corporate') return companyName(p) + ' ATF ' + (p.trustName || BLANK) + nom + at(p.address);
+  if (p.kind === 'individual')      return p.name || p.address ? em(p.name + nom) + at(p.address) : '';
+  if (p.kind === 'company')         return em(companyName(p) + nom) + at(p.address);
+  if (p.kind === 'trust_corporate') return em(companyName(p) + ' ATF ' + (p.trustName || BLANK) + nom) + at(p.address);
   const names = joinList(filled(p.trustees).map(t => t.name));
-  return (names || BLANK) + ' ATF ' + (p.trustName || BLANK) + nom +
+  return em((names || BLANK) + ' ATF ' + (p.trustName || BLANK) + nom) +
          at(p.address || filled(p.trustees)[0]?.address || '');
 }
 
 /** A whole list of parties, collapsing consecutive individuals on one address. */
-function partiesPhrase(list) {
+function partiesPhrase(list, em = String) {
   const chunks = [];
   let run = [];
-  const flush = () => { if (run.length) { chunks.push(peoplePhrase(run)); run = []; } };
+  const flush = () => { if (run.length) { chunks.push(peoplePhrase(run, em)); run = []; } };
   list.forEach(p => {
     if (p.kind === 'individual' && !p.nominee) { if (p.name || p.address) run.push(p); }
-    else { flush(); const s = partyDescription(p); if (s) chunks.push(s); }
+    else { flush(); const s = partyDescription(p, em); if (s) chunks.push(s); }
   });
   flush();
   return joinList(chunks);
@@ -1041,7 +1080,7 @@ function whenPhrase(when, date) {
 }
 const releasePhrase = (what, sum) =>
   ' and assignee agrees this ' + what + ' of ' + sum +
-  " to be release to assignor immediately by assignor's conveyancer.";
+  " to be released to assignor immediately by assignor's conveyancer.";
 
 /** The numbered items of the payment schedule, sub-items and all. */
 function scheduleItems() {
@@ -1115,7 +1154,7 @@ function partSentence(parts, i, what) {
 function clauses(payLetter) {
   return [
     {n: '1', title: 'INTERPRETATION',
-     body: ['In the interpretation of this Deed: -'],
+     body: ['In the interpretation of this Deed:'],
      subs: [
        ['1.1', '‘Assignment Date’ shall mean the date of execution of this Deed.'],
        ['1.2', '‘Stamp Duty’ shall mean any stamp duty or similar charge imposed by any governmental ' +
@@ -1127,7 +1166,7 @@ function clauses(payLetter) {
        ['1.4', 'Words importing the singular shall embrace the plural and words importing one gender ' +
                'shall embrace the other genders and vice versa respectively.'],
        ['1.5', 'Headings are for convenience of reference only and shall not affect the construction ' +
-               'or interpretation of the covenants terms and condition herein contained.']
+               'or interpretation of the covenants terms and conditions herein contained.']
      ]},
 
     {n: '2', title: 'ASSIGNMENT',
@@ -1139,7 +1178,7 @@ function clauses(payLetter) {
             'the payment by the Assignee to the Assignor of moneys equivalent to the deposit moneys ' +
             "already paid under the Contract the Assignor DOES HEREBY transfer and assign to the " +
             "Assignee all of the Assignor's estate right title claim and interest in the Land and the " +
-            'Contract AND the Assignee does hereby accept such assignment']},
+            'Contract AND the Assignee does hereby accept such assignment.']},
 
     {n: '3', title: "ASSIGNEE'S DEPOSIT",
      body: ['The Assignee shall pay a deposit of ' + amtWords(val('deposit')) +
@@ -1153,7 +1192,7 @@ function clauses(payLetter) {
        ['4.2', 'From the date of this Deed of Assignment the Assignee shall perform and observe all ' +
                'terms and conditions expressed or implied on that part of the Assignor under the ' +
                'Contract and shall attend to all matters required to complete settlement of the Contract.'],
-       ['4.3', 'Assignee shall pay to the Assignor the deposit amount and assignment Fee as Stipulated ' +
+       ['4.3', 'Assignee shall pay to the Assignor the deposit amount and assignment Fee as stipulated ' +
                'in Section "' + payLetter + '" of the deed.'],
        ['4.4', 'From the date of the Deed of Assignment the Assignee shall indemnify and keep ' +
                'indemnified the Assignor against all actions proceedings costs claims and demands by ' +
@@ -1192,13 +1231,13 @@ function clauses(payLetter) {
                'or extends the time period by notice in writing to the Assignee.'],
        ['7.3', 'in the event that this Deed of Assignment is terminated pursuant to 7.2 hereof then ' +
                "deposit Money and any other money already paid by the Assignee to the Assignor's " +
-               'Conveyancer (including any money released to assignor) shall forfeited entirely and ' +
-               "the Assignee authorises the Assignor's Conveyancer to pay any fund hold by assignor " +
+               'Conveyancer (including any money released to assignor) shall be forfeited entirely and ' +
+               "the Assignee authorises the Assignor's Conveyancer to pay any fund held by assignor " +
                'conveyancer to the Assignor within seven (7) days of the termination.']
      ]},
 
     {n: '8', title: 'NOTICES',
-     body: ['Any notice demand to be given or made on a party to this Deed of Assignment shall be in ' +
+     body: ['Any notice or demand to be given or made on a party to this Deed of Assignment shall be in ' +
             'writing signed by the party giving the notice or their authorised Agent and any notice ' +
             'shall be deemed to have been duly served or made if it is;'],
      subs: [
@@ -1212,7 +1251,7 @@ function clauses(payLetter) {
 
     {n: '9', title: 'VENDOR CONSENT',
      body: ['The Assignor and Assignee acknowledge and agree that if the Contract stipulates the ' +
-            "Vendor's consent is required for this Deed of Assignment and the vendor does not provide " +
+            "Vendor's consent is required for this Deed of Assignment and the Vendor does not provide " +
             'consent for the Deed of Assignment, then the Deed of Assignment will be mutually ' +
             'terminated, and any deposit paid under this Deed will be refunded to the Assignee; and ' +
             'the Assignor and Assignee will not have any recourse on the other party.']}
@@ -1232,7 +1271,7 @@ const IND = {
   sum:       {indent: 12},
   item:      {indent: 7,  hang: 7},
   subitem:   {indent: 14, hang: 8},
-  clause:    {indent: 0},
+  head:      {indent: 0,  hang: 8},    // clause number, then its title
   body:      {indent: 8},
   sub:       {indent: 8,  hang: 9}
 };
@@ -1249,13 +1288,14 @@ function buildBlocks() {
   const purchasers = partiesPhrase(S.purchasers) || BLANK;
 
   B.push({t:'title', text: val('docTitle') || 'DEED OF ASSIGNMENT'});
-  p('THIS DEED made the ' + longDate(val('deedDate')), {cls:'plain'});
+  p('THIS DEED made the ' + deedDate(val('deedDate')), {cls:'plain', bottom: 6});
 
-  /* --- the parties --- */
-  B.push({t:'twocol', labels:['BETWEEN', 'AND'],
-          lines:[(partiesPhrase(S.assignors) || BLANK), '(Hereinafter called ‘the Assignor’).']});
-  B.push({t:'twocol', labels:[],
-          lines:[(partiesPhrase(S.assignees) || BLANK), '(Hereinafter called ‘the Assignee’).']});
+  /* --- the parties: BETWEEN sits against the assignor, AND against the
+         assignee, and each is introduced by name in bold --- */
+  B.push({t:'twocol', labels:['BETWEEN'],
+          lines:[(partiesPhrase(S.assignors, bold) || BLANK), '(Hereinafter called ‘the Assignor’).']});
+  B.push({t:'twocol', labels:['AND'],
+          lines:[(partiesPhrase(S.assignees, bold) || BLANK), '(Hereinafter called ‘the Assignee’).']});
 
   const emails = assigneeEmails();
   if (emails.length === 1 && !emails[0].role) {
@@ -1266,7 +1306,7 @@ function buildBlocks() {
   }
 
   /* --- recitals --- */
-  p('WHEREAS:', {cls:'plain'});
+  p(bold('WHEREAS:'), {cls:'plain'});
   let letterCode = 65;                         // 'A'
   const letter = () => String.fromCharCode(letterCode++);
 
@@ -1289,7 +1329,7 @@ function buildBlocks() {
   }
 
   item(letter() + '.',
-    'Pursuant to the Contract dated ' + longDate(val('contractDate')) + ', a purchase price of ' +
+    'Pursuant to the Contract dated the ' + longDate(val('contractDate')) + ', a purchase price of ' +
     amtWords(val('price')) + ' will be payable for the purchase of the Land in the Contract, ' +
     'comprising a deposit of ' + amtWords(val('deposit')) + '.', IND.recital);
 
@@ -1305,12 +1345,15 @@ function buildBlocks() {
       'The Assignee desires to purchase the Land from the Assignor and shall pay the following:',
       IND.recital);
     // The total is only worth stating once both halves of it are known.
+    // Laid out as a sum: operator, figure and label in their own columns,
+    // ruled off under the addend the way it would be written by hand.
     const both = val('price') && val('fee');
     const total = num(val('price')) + num(val('fee'));
-    B.push({t:'sum', lines:[
-      amt(val('price')) + ' (Contract price)',
-      '+ ' + amt(val('fee')) + ' (Assignment Fee)',
-      '= ' + (both ? money(total) + ' (' + amountWords(total) + ')' : BLANK)
+    B.push({t:'sum', rows:[
+      {op:'',  amount: amt(val('price')), label:'(Contract price)'},
+      {op:'+', amount: amt(val('fee')),   label:'(Assignment Fee)', rule: true},
+      {op:'=', amount: both ? money(total) : BLANK,
+               label: both ? '(' + amountWords(total) + ')' : ''}
     ], ...IND.sum});
     p('Deposit and assignment fee for the Land which shall be payable in the following manner:',
       {cls:'plain', ...IND.under});
@@ -1327,18 +1370,19 @@ function buildBlocks() {
     'title claim and interest of the Assignor of in and to the Land under and by virtue of the ' +
     'Contract subject to the several terms and conditions herein set forth.', IND.recital);
 
-  p('NOW THIS DEED WITNESSES AS FOLLOWS: -', {cls:'plain'});
+  p(bold('NOW THIS DEED WITNESSES AS FOLLOWS:'), {cls:'plain'});
 
   /* --- the operative clauses --- */
   clauses(payLetter).forEach(c => {
-    B.push({t:'clausehead', text: c.n + '. ' + c.title});
+    // The heading's title sits in the same column as the text beneath it.
+    B.push({t:'clausehead', marker: c.n + '.', text: c.title, ...IND.head});
     (c.body || []).forEach(text => p(text, IND.body));
     (c.subs || []).forEach(([n, text]) => item(n, text, IND.sub));
   });
 
   /* --- execution --- */
   p('IN WITNESS whereof the parties hereto have executed this Deed the day and year hereinbefore ' +
-    'first mentioned.', {top: 10});
+    'first mentioned.', {top: 8});
 
   executionBlock(B, 'Assignor', deedSignatories(S.assignors));
   executionBlock(B, 'Assignee', deedSignatories(S.assignees));
@@ -1347,11 +1391,17 @@ function buildBlocks() {
 }
 
 function executionBlock(B, who, signers) {
-  B.push({t:'bracket', lines:['EXECUTED by the ' + who, 'in the presence of:', '']});
+  // `hold` keeps the whole execution block on one page: the two lines that
+  // introduce it are no use with the signatures overleaf.
+  B.push({t:'p', text: bold('EXECUTED by the ' + who), cls:'plain', top: 8, bottom: 0,
+          keep: true, hold: true});
+  B.push({t:'p', text: 'in the presence of:', cls:'plain', bottom: 1, keep: true});
   const list = signers.length ? signers : [{name: BLANK, cap: ''}];
   const n = perRow();
   for (let i = 0; i < list.length; i += n) B.push({t:'sigrow', cells: list.slice(i, i + n)});
-  if (witnessed()) B.push({t:'witness', cols: Math.min(list.length, perRow())});
+  // The witness rules sit in the signature columns, so a lone signatory gets
+  // a rule the width of its box rather than one across the whole page.
+  if (witnessed()) B.push({t:'witness', cols: Math.min(list.length, perRow()), grid: perRow()});
 }
 
 /* ------------------------------------------------------------------ *
@@ -1365,6 +1415,14 @@ function letterheadHtml() {
 }
 const letterheadFooterHtml = () => LH.footer
   ? `<div class="lhfoot"><span>${esc(LH.footer)}</span><span>Page 1</span></div>` : '';
+
+/** Marked-up text as HTML, the runs carrying their own styling. */
+const runsHtml = text => toRuns(text).map(r => {
+  let s = esc(r.text);
+  if (r.sup)  s = '<sup>' + s + '</sup>';
+  if (r.bold) s = '<b>' + s + '</b>';
+  return s;
+}).join('');
 
 function sigCellHtml(c, cols, gap) {
   const dateW = cols > 1 ? 68 : 34;
@@ -1381,26 +1439,30 @@ function docHtml() {
   const lh = onLetterhead();
   const body = buildBlocks().map(b => {
     const style = (extra = '') =>
-      (b.indent ? 'margin-left:' + b.indent + 'mm;' : '') + (b.top ? 'margin-top:' + b.top + 'mm;' : '') + extra;
+      (b.indent ? 'margin-left:' + b.indent + 'mm;' : '') +
+      (b.top ? 'margin-top:' + b.top + 'mm;' : '') +
+      (b.bottom !== undefined ? 'margin-bottom:' + b.bottom + 'mm;' : '') +
+      (b.keep ? 'page-break-after:avoid;break-after:avoid;' : '') + extra;
 
     switch (b.t) {
       case 'title':
         return '<h2>' + esc(b.text) + '</h2>';
       case 'twocol':
         return `<div class="twocol"><div class="lab">${b.labels.map(esc).join('\n')}</div>
-                  <div class="body">${b.lines.map(esc).join('\n')}</div></div>`;
-      case 'bracket':
-        return '<div style="margin-top:6mm">' + b.lines.map(l =>
-          `<div class="bracket"><span class="t">${esc(l)}</span><span>)</span></div>`).join('') + '</div>';
+                  <div class="body">${b.lines.map(runsHtml).join('\n')}</div></div>`;
       case 'clausehead':
-        return '<p class="clausehead">' + esc(b.text) + '</p>';
+        return `<p class="clausehead" style="margin-left:${b.indent + b.hang}mm;text-indent:-${b.hang}mm">` +
+               `<span style="display:inline-block;min-width:${b.hang}mm">${esc(b.marker)}</span>` +
+               esc(b.text) + '</p>';
       case 'sum':
-        return '<div style="' + style() + 'margin-bottom:9px">' +
-               b.lines.map(l => '<div>' + esc(l) + '</div>').join('') + '</div>';
+        return `<table class="sum" style="${style()}"><tbody>` + b.rows.map(r =>
+          `<tr class="${r.rule ? 'ruled' : ''}"><td class="op">${esc(r.op)}</td>` +
+          `<td class="fig"><span>${esc(r.amount)}</span></td>` +
+          `<td class="lab2"><span>${esc(r.label)}</span></td></tr>`).join('') + '</tbody></table>';
       case 'item':
         return `<p style="${style('margin-left:' + (b.indent + b.hang) + 'mm;text-indent:-' + b.hang + 'mm')}">` +
                `<span style="display:inline-block;min-width:${b.hang}mm">${esc(b.marker)}</span>` +
-               esc(b.text) + '</p>';
+               runsHtml(b.text) + '</p>';
       case 'sigrow': {
         const cols = perRow();
         const top = sigBoxed() ? '' : `margin-top:${gap}px;`;
@@ -1409,11 +1471,12 @@ function docHtml() {
       }
       case 'witness':
         return `<div style="page-break-inside:avoid"><p class="plain" style="margin-bottom:${Math.round(gap * 0.5)}px">Witness:</p>
-          <div class="sigrow" style="grid-template-columns:repeat(${b.cols},1fr);margin-top:0">
-            ${Array.from({length: b.cols}, () => '<div><div class="sigline"></div></div>').join('')}
+          <div class="sigrow" style="grid-template-columns:repeat(${b.grid},1fr);margin-top:0">
+            ${Array.from({length: b.grid}, (_, i) =>
+              '<div>' + (i < b.cols ? '<div class="sigline"></div>' : '') + '</div>').join('')}
           </div></div>`;
       default:
-        return `<p class="${b.cls === 'plain' ? 'plain' : ''}" style="${style()}">${esc(b.text)}</p>`;
+        return `<p class="${b.cls === 'plain' ? 'plain' : ''}" style="${style()}">${runsHtml(b.text)}</p>`;
     }
   }).join('');
   return (lh ? letterheadHtml() : '') + body + (lh ? letterheadFooterHtml() : '');
@@ -1521,7 +1584,7 @@ async function pourIntoLetterhead(generated) {
 function buildDocxDoc() {
   if (typeof docx === 'undefined') return null;
   const {Document, Paragraph, TextRun, Tab, AlignmentType, BorderStyle, Footer, PageNumber,
-         TabStopType, Table, TableRow, TableCell, WidthType, HeightRule} = docx;
+         Table, TableRow, TableCell, WidthType, HeightRule} = docx;
   const children = [];
 
   const NONE = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
@@ -1530,11 +1593,16 @@ function buildDocxDoc() {
   const HALF = Math.round(ptSize() * 2);             // docx sizes are half-points
 
   const run = (text, o = {}) => new TextRun({text, size:HALF, ...o});
+  /** Marked-up text as Word runs, each carrying its own bold / superscript. */
+  const runs = (text, o = {}) => toRuns(text).map(r =>
+    new TextRun({text: r.text, size: HALF, bold: r.bold || !!o.bold,
+                 italics: !!o.italics, superScript: r.sup}));
 
   /** Name, capacity and date line — printed under the box or the rule. */
   const sigLabels = (c, dateSpaces) => {
     const out = [new Paragraph({spacing:{after:0}, children:[run(c.name || BLANK, {bold:true})]})];
-    if (c.cap) out.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120}, children:[run(c.cap)]}));
+    if (c.cap) out.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120},
+                                       children:[run(c.cap, {italics:true})]}));
     if (sigDated()) {
       // Underlined non-breaking spaces, so the rule stays put when the
       // document is edited in Word.
@@ -1592,7 +1660,7 @@ function buildDocxDoc() {
   };
 
   /** Ruled lines for the witness, in the same columns as the signatures. */
-  const witnessTable = cols => [
+  const witnessTable = (cols, grid) => [
     new Paragraph({spacing:{before:200, after:0}, children:[run('Witness:')]}),
     new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}),
     new Table({
@@ -1600,7 +1668,7 @@ function buildDocxDoc() {
       borders: noBorders,
       rows:[new TableRow({
         height:{value: Math.round(sigSpace().twips * 0.6), rule: HeightRule.ATLEAST},
-        children: cellGrid(Array.from({length: cols}, () => true), cols, (c, cw) => new TableCell({
+        children: cellGrid(Array.from({length: grid}, (_, i) => i < cols), grid, (c, cw) => new TableCell({
           width:{size:cw, type:WidthType.DXA},
           borders: {top:NONE, left:NONE, right:NONE, bottom: c ? SOLID : NONE},
           children:[new Paragraph('')]
@@ -1629,41 +1697,52 @@ function buildDocxDoc() {
                 new Paragraph({spacing:{after:0}, children:[run(l)]}))}),
             new TableCell({width:{size: TEXT_WIDTH - tw(33), type:WidthType.DXA}, borders:noBorders,
               margins:{bottom:120},
-              children: b.lines.map(l => new Paragraph({spacing:{after:0}, children:[run(l)]}))})
+              children: b.lines.map(l => new Paragraph({spacing:{after:0}, children: runs(l)}))})
           ]})]
         }));
         children.push(new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}));
         return;
 
-      case 'bracket':
-        children.push(new Paragraph({spacing:{before:280, after:0}, children:[new TextRun({text:'', size:8})]}));
-        b.lines.forEach(l => children.push(new Paragraph({
-          spacing:{after:0},
-          tabStops:[{type: TabStopType.LEFT, position: tw(80)}],
-          children:[run(l), new TextRun({children:[new Tab()], size:HALF}), run(')')]
-        })));
-        return;
-
       case 'clausehead':
         children.push(new Paragraph({
-          spacing:{before:300, after:140}, keepNext: true,
-          children:[run(b.text, {bold:true})]
+          spacing:{before:320, after:160}, keepNext: true,
+          indent:{left: tw(b.indent + b.hang), hanging: tw(b.hang)},
+          children:[run(b.marker, {bold:true}), new TextRun({children:[new Tab()], size:HALF}),
+                    run(b.text, {bold:true})]
         }));
         return;
 
-      case 'sum':
-        b.lines.forEach(l => children.push(new Paragraph({
-          spacing:{after:0}, indent:{left: tw(b.indent)}, children:[run(l)]
-        })));
-        children.push(new Paragraph({spacing:{after:120}, children:[new TextRun({text:'', size:8})]}));
+      /* The sum is a table so the figures keep their columns and the rule
+         under the addend lands where it would if it were written by hand. */
+      case 'sum': {
+        const under = {top:NONE, left:NONE, right:NONE, bottom:SOLID};
+        const cell = (size, text, ruled, align) => new TableCell({
+          width:{size, type:WidthType.DXA},
+          borders: ruled ? under : noBorders,
+          children:[new Paragraph({spacing:{after:0}, alignment: align, children:[run(text)]})]
+        });
+        const gutter = tw(6), opW = tw(8), figW = tw(28);
+        children.push(new Table({
+          width:{size: TEXT_WIDTH, type:WidthType.DXA},
+          indent:{size: tw(b.indent), type:WidthType.DXA},
+          borders: noBorders,
+          rows: b.rows.map(r => new TableRow({children:[
+            cell(opW, r.op, false),
+            cell(figW, r.amount, r.rule),
+            cell(gutter, '', false),
+            cell(TEXT_WIDTH - tw(b.indent) - opW - figW - gutter, r.label, r.rule)
+          ]}))
+        }));
+        children.push(new Paragraph({spacing:{after:160}, children:[new TextRun({text:'', size:8})]}));
         return;
+      }
 
       case 'item':
         children.push(new Paragraph({
           spacing:{after:140, line:264},
           alignment: AlignmentType.JUSTIFIED,
           indent:{left: tw(b.indent + b.hang), hanging: tw(b.hang)},
-          children:[run(b.marker), new TextRun({children:[new Tab()], size:HALF}), run(b.text)]
+          children:[run(b.marker), new TextRun({children:[new Tab()], size:HALF}), ...runs(b.text)]
         }));
         return;
 
@@ -1672,15 +1751,16 @@ function buildDocxDoc() {
         return;
 
       case 'witness':
-        children.push(...witnessTable(b.cols));
+        children.push(...witnessTable(b.cols, b.grid));
         return;
 
       default:
         children.push(new Paragraph({
-          spacing:{after:140, line:264, before: tw(b.top || 0)},
+          spacing:{after: b.bottom !== undefined ? tw(b.bottom) : 140, line:264, before: tw(b.top || 0)},
           alignment: b.cls === 'plain' ? AlignmentType.LEFT : AlignmentType.JUSTIFIED,
           indent:{left: tw(b.indent || 0)},
-          children:[run(b.text)]
+          keepNext: !!b.keep,
+          children: runs(b.text)
         }));
     }
   });
@@ -1734,13 +1814,20 @@ const DOC_CSS = `@page{size:A4;margin:20mm}
 .doc .twocol{display:flex;margin:0 0 9px}
 .doc .twocol .lab{width:33mm;flex:none;white-space:pre-line}
 .doc .twocol .body{flex:1;white-space:pre-line}
-.doc .bracket{display:flex}
-.doc .bracket .t{width:80mm;flex:none}
-.doc .clausehead{font-weight:700;margin:16px 0 8px;text-align:left}
+.doc sup{font-size:.72em;line-height:0}
+.doc table.sum{border-collapse:collapse;margin:0 0 12px}
+.doc table.sum td{padding:1px 0;vertical-align:bottom;white-space:nowrap}
+.doc table.sum td.op{width:8mm}
+.doc table.sum td.fig{width:34mm;padding-right:8mm}
+.doc table.sum td span{display:inline-block;padding-bottom:2px}
+.doc table.sum td.fig span{width:100%}
+.doc table.sum tr.ruled td span{border-bottom:1px solid #000}
+.doc .clausehead{font-weight:700;margin:17px 0 9px;text-align:left}
 .doc .sigrow{display:grid;gap:26px;margin:6px 0 14px;page-break-inside:avoid}
 .doc .sigline{border-bottom:1px solid #000;width:72%;height:1px;margin-bottom:4px}
 .doc .sigbox{border:1px solid #000;margin-bottom:4px}
 .doc .signame{font-weight:700}
+.doc .sigcap{font-style:italic}
 .doc .sigdate{margin-top:9px}
 .doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}`;
 
@@ -1798,22 +1885,54 @@ function buildPdfDoc() {
   }
   const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
 
-  /** Wrapped, optionally justified text in a column. */
-  const writeLines = (text, x, width, justify) => {
-    const lines = d.splitTextToSize(ascii(text), width);
+  /* jsPDF draws one string in one style, so marked-up text is broken into
+     words that each remember whether they are bold or raised, measured in
+     their own font, and then wrapped and placed by hand. */
+  const setWordFont = w => d.setFont('helvetica', w.bold ? 'bold' : (w.italic ? 'italic' : 'normal'))
+                            .setFontSize(w.sup ? SIZE * 0.7 : SIZE);
+
+  /** Break marked-up text into wrapped lines of measured words. */
+  const layout = (text, width, o = {}) => {
+    const words = [];
+    toRuns(text).forEach(r => ascii(r.text).split(/(\s+)/).forEach(tk => {
+      if (tk !== '') words.push({t: tk, bold: r.bold || o.bold, italic: o.italic,
+                                 sup: r.sup, space: /^\s+$/.test(tk)});
+    }));
+    words.forEach(w => { setWordFont(w); w.w = d.getTextWidth(w.t); });
+
+    const lines = [];
+    let cur = [], used = 0;
+    const trim = () => { while (cur.length && cur[cur.length - 1].space) used -= cur.pop().w; };
+    words.forEach(w => {
+      if (w.space) { if (cur.length) { cur.push(w); used += w.w; } return; }
+      if (used + w.w > width && cur.length) { trim(); lines.push(cur); cur = []; used = 0; }
+      cur.push(w); used += w.w;
+    });
+    trim();
+    if (cur.length) lines.push(cur);
+    d.setFont('helvetica', 'normal').setFontSize(SIZE);
+    return lines.length ? lines : [[]];
+  };
+
+  /** Draw laid-out lines at x, justifying all but the last when asked. */
+  const draw = (lines, x, width, justify) => {
     lines.forEach((ln, i) => {
       need(LINE);
-      const words = ln.split(' ').filter(Boolean);
-      if (justify && i < lines.length - 1 && words.length > 1) {
-        const gap = (width - words.reduce((s, w) => s + d.getTextWidth(w), 0)) / (words.length - 1);
-        let cx = x;
-        words.forEach(w => { d.text(w, cx, y); cx += d.getTextWidth(w) + gap; });
-      } else {
-        d.text(ln, x, y);
-      }
+      const own = ln.reduce((s, w) => s + w.w, 0);
+      const gaps = ln.filter(w => w.space).length;
+      const extra = (justify && i < lines.length - 1 && gaps) ? (width - own) / gaps : 0;
+      let cx = x;
+      ln.forEach(w => {
+        // a raised suffix sits about a third of a line above the baseline
+        if (!w.space) { setWordFont(w); d.text(w.t, cx, y - (w.sup ? SIZE * 0.115 : 0)); }
+        cx += w.w + (w.space ? extra : 0);
+      });
       y += LINE;
     });
+    d.setFont('helvetica', 'normal').setFontSize(SIZE);
   };
+
+  const writeLines = (text, x, width, justify, o) => draw(layout(text, width, o), x, width, justify);
 
   buildBlocks().forEach(b => {
     switch (b.t) {
@@ -1827,46 +1946,50 @@ function buildPdfDoc() {
       }
       case 'twocol': {
         const x2 = M + 33;
+        const lines = b.lines.map(l => layout(l, W - 33));
+        need(LINE * lines.reduce((n, ls) => n + ls.length, 0));
         const top = y;
-        b.lines.forEach(l => writeLines(l, x2, W - 33, false));
+        lines.forEach(ls => draw(ls, x2, W - 33, false));
         const after = y;
         y = top;
         b.labels.forEach(l => { d.text(ascii(l), M, y); y += LINE; });
-        y = Math.max(after, y) + 2.5;
+        y = Math.max(after, y) + 3;
         return;
       }
-      case 'bracket':
-        y += 5;
-        // An execution block is no use split across a page, so the whole of
-        // it — the brackets, a row of signatures and the labels under it —
-        // has to fit before any of it is drawn.
-        need(LINE * 7 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0));
-        b.lines.forEach(l => {
-          if (l) d.text(ascii(l), M, y);
-          d.text(')', M + 80, y);
-          y += LINE;
-        });
-        y += 1.5;
-        return;
       case 'clausehead':
         need(LINE * 3.5);                      // never strand a heading at the foot
-        y += 4;
+        y += 4.5;
         d.setFont('helvetica', 'bold');
-        d.text(ascii(b.text), M, y);
+        d.text(ascii(b.marker), M + b.indent, y);
+        d.text(ascii(b.text), M + b.indent + b.hang, y);
         d.setFont('helvetica', 'normal');
-        y += LINE + 2;
+        y += LINE + 2.5;
         return;
-      case 'sum':
-        b.lines.forEach(l => { need(LINE); d.text(ascii(l), M + b.indent, y); y += LINE; });
-        y += 2.5;
+      case 'sum': {
+        const opX = M + b.indent, figX = opX + 8, figW = 28, labX = figX + figW + 6;
+        need(LINE * b.rows.length + 3);
+        b.rows.forEach(r => {
+          const lab = ascii(r.label);
+          d.text(ascii(r.op), opX, y);
+          d.text(ascii(r.amount), figX, y);
+          d.text(lab, labX, y);
+          if (r.rule) {
+            d.setLineWidth(0.25);
+            d.line(figX, y + 1.4, figX + figW, y + 1.4);
+            if (lab) d.line(labX, y + 1.4, labX + d.getTextWidth(lab), y + 1.4);
+          }
+          y += LINE;
+        });
+        y += 3;
         return;
+      }
       case 'item': {
         const width = W - b.indent - b.hang;
+        const lines = layout(b.text, width);
         // Never leave the number at the foot of a page with its text overleaf.
-        const lines = d.splitTextToSize(ascii(b.text), width).length;
-        need(LINE * Math.min(lines, 2));
+        need(LINE * Math.min(lines.length, 2));
         d.text(ascii(b.marker), M + b.indent, y);
-        writeLines(b.text, M + b.indent + b.hang, width, true);
+        draw(lines, M + b.indent + b.hang, width, true);
         y += 2;
         return;
       }
@@ -1875,8 +1998,10 @@ function buildPdfDoc() {
         const cols = perRow();
         const colW = W / cols;
         const boxW = colW - (cols > 1 ? 8 : 0);
+        d.setFont('helvetica', 'italic');       // the capacity wraps in italics
         const capLines = Math.max(...b.cells.map(c =>
           c.cap ? d.splitTextToSize(ascii(c.cap), boxW).length : 0), 0);
+        d.setFont('helvetica', 'normal');
         need(gap + 8 + capLines * LINE + (sigDated() ? LINE + 3 : 0));
         d.setLineWidth(0.3);
         if (sigBoxed()) {
@@ -1895,12 +2020,14 @@ function buildPdfDoc() {
         if (capLines) {
           const top = y;
           let low = y;
+          d.setFont('helvetica', 'italic');
           b.cells.forEach((c, i) => {
             if (!c.cap) return;
             y = top;
             d.splitTextToSize(ascii(c.cap), boxW).forEach(ln => { d.text(ln, M + i * colW, y); y += LINE; });
             low = Math.max(low, y);
           });
+          d.setFont('helvetica', 'normal');
           y = low;
         }
         if (sigDated()) {
@@ -1918,8 +2045,8 @@ function buildPdfDoc() {
       }
       case 'witness': {
         const gap = sigSpace().mm * 0.6;
-        const colW = W / b.cols;
-        const boxW = colW - (b.cols > 1 ? 8 : 0);
+        const colW = W / b.grid;
+        const boxW = colW - (b.grid > 1 ? 8 : 0);
         need(gap + LINE + 6);
         d.text('Witness:', M, y);
         y += gap;
@@ -1930,9 +2057,10 @@ function buildPdfDoc() {
       }
       default: {
         if (b.top) y += b.top;
+        if (b.hold) need(LINE * 7 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0));
         const x = M + (b.indent || 0);
         writeLines(b.text, x, W - (b.indent || 0), b.cls !== 'plain');
-        y += 2;
+        y += b.bottom !== undefined ? b.bottom : 2;
       }
     }
   });

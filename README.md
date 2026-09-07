@@ -62,18 +62,30 @@ The deed's clauses are the firm's template, reproduced word for word and not edi
 What the form changes is the front of the deed — the parties, the recitals and the payment schedule
 — and the two places in the clauses that point back at it.
 
+A short list of plain errors in the template was corrected, without altering what any clause says:
+`shall forfeited` → `shall be forfeited` and `fund hold by` → `fund held by` (7.3), `to be release
+to assignor` → `to be released` (payment schedule), `Any notice demand` → `Any notice or demand`
+(clause 8, as 8.1 and 8.2 already read), `condition` → `conditions` (1.5), `as Stipulated` → `as
+stipulated` (4.3), `the vendor` → `the Vendor` (clause 9), `dated 23rd of January` → `dated the
+23rd of January` (price recital), a missing full stop at the end of clause 2, and the stray dash
+after the colon in `AS FOLLOWS: -`.
+
 - **Parties** use the same party model as the other tools: assignor, assignee, vendor and (where the
   assignor is not the purchaser under the contract) the purchaser are each a list, and every party
-  picks its own type. Parties to the deed itself can be marked *and/or Nominee*.
+  picks its own type. Parties to the deed itself can be marked *and/or Nominee*. `BETWEEN` sits
+  against the assignor and `AND` against the assignee, each introduced by name in bold with its
+  address following in plain type.
+- **Dates** read `16`^`th`^` day of September 2025` for the deed's own date and `23`^`rd`^` of
+  January 2026` elsewhere, the suffix raised in the preview, the Word file and the PDF alike.
 - **Assignee's email(s)** are entered against the assignee or its directors, and print under the
   parties — as a bare address when there is one, or as `NAME (Director): address` when there are
   several.
 - **Recitals letter themselves.** Adding the recital for an earlier deed of assignment pushes
   everything after it along, and clause 3 and clause 4.3 follow — they always name the letter the
   payment schedule actually carries.
-- **Consideration** is either an assignment fee, which prints the `contract price + fee = total`
-  sum, or *without any further consideration or assignment Fee*, which prints neither the sum nor
-  the fee terms.
+- **Consideration** is either an assignment fee, or *without any further consideration or assignment
+  Fee*, which prints neither the sum nor the fee terms. Where there is a fee, the price breakdown is
+  set out as a sum — operator, figure and label in their own columns, with the addend ruled off.
 - **The payment schedule is built, not typed.** The deposit and the fee each choose when they fall
   due — on signing, on settlement, or on or before a date — and whether they are paid to the trust
   account (named in a field) or to the assignor directly, with the release-on-receipt wording as an
@@ -84,9 +96,10 @@ What the form changes is the front of the deed — the parties, the recitals and
 - **Amounts are written out for you.** `25000` prints as `$25,000.00 (twenty-five thousand dollars)`
   wherever it appears, so the figures and the words can never drift apart.
 - **Output** is A4 Arial, 10, 11 or 12pt, with the pages numbered off letterhead. Execution blocks
-  carry the `EXECUTED by the Assignor )` brackets, signature boxes or ruled lines with each
-  signatory's capacity beneath, optional date lines, and a witness rule. A signature block is never
-  split across a page, and a clause heading is never stranded at the foot of one.
+  read `EXECUTED by the Assignor` over `in the presence of:`, then the same signature boxes or ruled
+  lines the nomination tool uses — name in bold, capacity in italics beneath, an optional date line
+  — followed by a witness rule in the signature columns. An execution block is never split across a
+  page, and a clause heading is never stranded at the foot of one.
 
 ## Never Sold or Occupied Declaration — notes
 
