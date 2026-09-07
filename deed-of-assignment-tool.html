@@ -2365,6 +2365,19 @@ const trustee  = (name, address, email) => ({id:uid(), name, address, email: ema
 const property = o => Object.assign({id:uid(), address:'', legal:'', volume:'', folio:'', extent:'whole', portion:''}, o);
 const part     = o => Object.assign(newPart(), o);
 
+/* Every name, company, ACN, address and title reference below is invented.
+   This file is published, so no sample may be traceable to a real matter —
+   the samples exist to show the shape a deed takes, not a particular one. */
+const ADDR = {
+  ellery:   '14 Wexford Street, Northfield SA 5085',
+  farrow:   '41 Trelawney Street, Fairfield NSW 2165',
+  menon:    '9 Bellhaven Court, Golden Grove SA 5125',
+  sablewood:'27 Kingsford Street, Plympton Park SA 5038',
+  ashcombe: '6 Waratah Road, Ingle Farm SA 5098',
+  halloran: '63 Fenwick Street, Croydon Park SA 5008',
+  pemberton:'RSD 2180 Fenwick Road, Gawler Belt SA 5118'
+};
+
 const SAMPLES = {
   nofee: {
     label: 'No further consideration',
@@ -2373,17 +2386,15 @@ const SAMPLES = {
              depMode:'single', vendorCredit:true, depNonRefundable:true},
     deposit: {when:'signing', date:'', payee:'assignor', release:false, parts:[]},
     fee: EMPTY_TERMS(),
-    assignors: [party('individual', {name:'Mahira Jitendra Patel', nominee:true,
-                                     address:'18C Cresdee Road, Campbelltown SA 5074'})],
-    assignees: [party('company', {name:'Kudla Projects Pty Ltd', acn:'700 555 120',
-                                  address:'18C Cresdee Road, Campbelltown SA 5074',
-                                  officers:[officer('Harshaben Nayan Darji', 'Director', '18C Cresdee Road, Campbelltown SA 5074', 'harsha@example.com'),
-                                            officer('Jaikin Suresh Lund', 'Director', '18C Cresdee Road, Campbelltown SA 5074', 'jaikin@example.com')]})],
-    vendors: [party('individual', {name:'Phetsamone Bounketh', address:'102 Cambridge Street, Canley Heights NSW 2166'}),
-              party('individual', {name:'Saengdara Bounketh', address:'102 Cambridge Street, Canley Heights NSW 2166'})],
+    assignors: [party('individual', {name:'Anita Rose Calloway', nominee:true, address:ADDR.ellery})],
+    assignees: [party('company', {name:'Wexford Land Pty Ltd', acn:'701 448 296', address:ADDR.ellery,
+                                  officers:[officer('Dean Marcus Ellery', 'Director', ADDR.ellery, 'dean@example.com'),
+                                            officer('Priya Nadine Sandoval', 'Director', ADDR.ellery, 'priya@example.com')]})],
+    vendors: [party('individual', {name:'Marcus Neil Farrow', address:ADDR.farrow}),
+              party('individual', {name:'Deborah Kaye Farrow', address:ADDR.farrow})],
     purchasers: [],
-    properties: [property({address:'357 Stebonheath Road, Kudla SA 5115', volume:'6329', folio:'331',
-                           legal:'Allotment 50 in Deposited Plan 139470 in the area named Kudla, Hundred of Munno Para'})],
+    properties: [property({address:'88 Larkspur Road, Angle Vale SA 5117', volume:'6402', folio:'118',
+                           legal:'Allotment 27 in Deposited Plan 141902 in the area named Angle Vale, Hundred of Munno Para'})],
     extras: []
   },
 
@@ -2391,18 +2402,18 @@ const SAMPLES = {
     label: 'Fee on settlement',
     fields: {deedDate:'2026-06-10', contractName:'Contract for the Sale of Residential Property',
              contractDate:'2026-05-19', purchaserIs:'named', payMode:'fee',
-             price:'891000', deposit:'25000', fee:'40000', depMode:'single', feeMode:'single'},
+             price:'875000', deposit:'25000', fee:'40000', depMode:'single', feeMode:'single'},
     deposit: {when:'signing', date:'', payee:'trust', release:true, parts:[]},
     fee: {when:'settlement', date:'', payee:'trust', release:false, parts:[]},
-    assignors: [party('individual', {name:'Chirag Lalbhai Patel', address:'2 Tappa Court, Oakden SA 5086'})],
-    assignees: [party('company', {name:'Topaz Housing Pty Ltd', acn:'678 969 134',
-                                  address:'64 Wheaton Street, South Plympton SA 5038', email:'office@example.com',
-                                  officers:[officer('Samir Roshan Shukla', 'Director', '64 Wheaton Street, South Plympton SA 5038'),
-                                            officer('Jugal Girish Patel', 'Director', '64 Wheaton Street, South Plympton SA 5038')]})],
-    vendors: [party('individual', {name:'Joylene Ann Burford', address:'2 Straun Road, Ingle Farm SA 5098'})],
-    purchasers: [party('individual', {name:'Chirag Lalbhai Patel', address:'2 Tappa Court, Oakden SA 5086'})],
-    properties: [property({address:'2 Straun Road, Ingle Farm SA 5098', volume:'5340', folio:'738',
-                           legal:'Allotment 1415 in Deposited Plan 9283 in the area named Ingle Farm, Hundred of Yatala'})],
+    assignors: [party('individual', {name:'Ravi Prakash Menon', address:ADDR.menon})],
+    assignees: [party('company', {name:'Sablewood Housing Pty Ltd', acn:'664 302 517',
+                                  address:ADDR.sablewood, email:'office@example.com',
+                                  officers:[officer('Owen Tate Brindley', 'Director', ADDR.sablewood),
+                                            officer('Marisol Vega Ortiz', 'Director', ADDR.sablewood)]})],
+    vendors: [party('individual', {name:'Glenys Maree Ashcombe', address:ADDR.ashcombe})],
+    purchasers: [party('individual', {name:'Ravi Prakash Menon', address:ADDR.menon})],
+    properties: [property({address:ADDR.ashcombe, volume:'5388', folio:'204',
+                           legal:'Allotment 1502 in Deposited Plan 9411 in the area named Ingle Farm, Hundred of Yatala'})],
     extras: []
   },
 
@@ -2410,26 +2421,25 @@ const SAMPLES = {
     label: 'Fee in instalments',
     fields: {deedDate:'2026-05-11', contractName:'Contract for the Sale of Rural Land Property',
              contractDate:'2026-01-23', purchaserIs:'named', priorDeed:true, priorDeedDate:'2026-05-07',
-             payMode:'fee', price:'3800000', deposit:'150000', fee:'700000',
+             payMode:'fee', price:'3650000', deposit:'150000', fee:'700000',
              depMode:'single', feeMode:'parts'},
     deposit: {when:'signing', date:'', payee:'trust', release:true, parts:[]},
     fee: {when:'settlement', date:'', payee:'trust', release:true, parts:[
       part({amount:'250000', when:'date', date:'2026-07-20', payee:'trust', release:true}),
       part({amount:'450000', when:'date', date:'2027-10-20', payee:'trust', release:true})
     ]},
-    assignors: [party('company', {name:'Hillier Projects Pty Ltd', acn:'695 782 524',
-                                  address:'18C Cresdee Road, Campbelltown SA 5074',
-                                  officers:[officer('Harshaben Nayan Darji', 'Director', '18C Cresdee Road, Campbelltown SA 5074'),
-                                            officer('Jaikin Suresh Lund', 'Director', '18C Cresdee Road, Campbelltown SA 5074')]})],
-    assignees: [party('company', {name:'SKX Group of Companies Pty Ltd', acn:'657 629 751', nominee:true,
-                                  address:'57 Second Street, Brompton SA 5007', email:'skx@example.com',
-                                  officers:[officer('Surender Surender', 'Sole Director', '57 Second Street, Brompton SA 5007')]})],
-    vendors: [party('individual', {name:'Robert James Slape', address:'RSD 3514 Hillier Road, Gawler River SA 5118'}),
-              party('individual', {name:'Kathleen Therese Slape', address:'RSD 3514 Hillier Road, Gawler River SA 5118'})],
-    purchasers: [party('individual', {name:'Harshaben Nayan Darji', nominee:true,
-                                      address:'7 High Avenue, Clearview SA 5085'})],
-    properties: [property({address:'186 Hillier Road, Hillier SA 5116', volume:'5256', folio:'81',
-                           legal:'Allotment 1 in Filed Plan 10463 in the area named Hillier, Hundred of Munno Para'})],
+    assignors: [party('company', {name:'Brookvale Projects Pty Ltd', acn:'692 105 833', address:ADDR.ellery,
+                                  officers:[officer('Dean Marcus Ellery', 'Director', ADDR.ellery),
+                                            officer('Priya Nadine Sandoval', 'Director', ADDR.ellery)]})],
+    assignees: [party('company', {name:'Halloran Group Holdings Pty Ltd', acn:'658 771 402', nominee:true,
+                                  address:ADDR.halloran, email:'office@example.com',
+                                  officers:[officer('Nikhil Anand Rajaram', 'Sole Director', ADDR.halloran)]})],
+    vendors: [party('individual', {name:'Alan Charles Pemberton', address:ADDR.pemberton}),
+              party('individual', {name:'Judith Rae Pemberton', address:ADDR.pemberton})],
+    purchasers: [party('individual', {name:'Dean Marcus Ellery', nominee:true,
+                                      address:'22 Halstead Avenue, Clearview SA 5085'})],
+    properties: [property({address:'204 Fenwick Road, Hillier SA 5116', volume:'5311', folio:'46',
+                           legal:'Allotment 3 in Filed Plan 10788 in the area named Hillier, Hundred of Munno Para'})],
     extras: []
   }
 };
