@@ -8,6 +8,7 @@ server and no database — open it and it works.
 | Tool | What it does |
 |---|---|
 | [Nomination Document Builder](nomination-tool.html) | Prepares a direction to transfer land to a nominee, and exports it as a formatted `.docx` or `.pdf` with signing blocks. |
+| [Deed of Assignment Builder](deed-of-assignment-tool.html) | Prepares a deed assigning a contract of sale, with or without a further consideration, and with the deposit and assignment fee payable however they were agreed. |
 | [Never Sold or Occupied Declaration](never-sold-tool.html) | Prepares the vendor's confirmation that a home is brand new and has never been leased, sold or occupied. |
 | [Beneficial Owner Identification](beneficial-owner-tool.html) | Records the beneficial owners behind a non-individual client for customer due diligence, as a numbered form with a register. |
 
@@ -54,6 +55,38 @@ Keep each tool to one file so it can be shared, emailed or saved on its own.
   platforms such as DocuSign.
 - **Samples** — the *Load sample…* menu fills the form with fictional data covering the common
   structures, useful for checking how a structure reads before entering a real matter.
+
+## Deed of Assignment Builder — notes
+
+The deed's clauses are the firm's template, reproduced word for word and not editable in the tool.
+What the form changes is the front of the deed — the parties, the recitals and the payment schedule
+— and the two places in the clauses that point back at it.
+
+- **Parties** use the same party model as the other tools: assignor, assignee, vendor and (where the
+  assignor is not the purchaser under the contract) the purchaser are each a list, and every party
+  picks its own type. Parties to the deed itself can be marked *and/or Nominee*.
+- **Assignee's email(s)** are entered against the assignee or its directors, and print under the
+  parties — as a bare address when there is one, or as `NAME (Director): address` when there are
+  several.
+- **Recitals letter themselves.** Adding the recital for an earlier deed of assignment pushes
+  everything after it along, and clause 3 and clause 4.3 follow — they always name the letter the
+  payment schedule actually carries.
+- **Consideration** is either an assignment fee, which prints the `contract price + fee = total`
+  sum, or *without any further consideration or assignment Fee*, which prints neither the sum nor
+  the fee terms.
+- **The payment schedule is built, not typed.** The deposit and the fee each choose when they fall
+  due — on signing, on settlement, or on or before a date — and whether they are paid to the trust
+  account (named in a field) or to the assignor directly, with the release-on-receipt wording as an
+  option. Either can instead be paid in instalments, which print as `a.`, `b.` under their item and
+  name themselves *An initial amount* / *A further amount* / *The balance amount* unless you word
+  one yourself. Instalments that do not add up to the total say so as you type. Anything the
+  structure does not cover goes in **Further payment terms** as extra numbered items.
+- **Amounts are written out for you.** `25000` prints as `$25,000.00 (twenty-five thousand dollars)`
+  wherever it appears, so the figures and the words can never drift apart.
+- **Output** is A4 Arial, 10, 11 or 12pt, with the pages numbered off letterhead. Execution blocks
+  carry the `EXECUTED by the Assignor )` brackets, signature boxes or ruled lines with each
+  signatory's capacity beneath, optional date lines, and a witness rule. A signature block is never
+  split across a page, and a clause heading is never stranded at the foot of one.
 
 ## Never Sold or Occupied Declaration — notes
 
@@ -116,14 +149,14 @@ no header images still works, using its text alone.
 
 ## Shared conventions
 
-All three tools follow the same rules, so anything you learn in one carries over:
+All four tools follow the same rules, so anything you learn in one carries over:
 
 - A4 and Arial in the `.docx` and the `.pdf` alike (the letters at 11pt, the denser identification
   form at 10pt); the PDF is real text, not an image.
 - Adjustable signing space for e-signature platforms.
 - Drafts save as `.json` to a folder you pick; a draft only loads into the tool that wrote it.
-- Downloads are named plainly (`Nomination`, `Never sold or occupied`, `Beneficial owner
-  identification`) with no client details in the filename.
+- Downloads are named plainly (`Nomination`, `Deed of assignment`, `Never sold or occupied`,
+  `Beneficial owner identification`) with no client details in the filename.
 - Blank fields print as a rule rather than sample text, so an incomplete draft still previews.
 
 The generated wording is a starting point, not legal advice — always review a document before it

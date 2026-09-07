@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deed of Assignment Builder</title>
+<script src="https://unpkg.com/docx@9.0.2/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --line:#d8dbe0; --ink:#1b1d21; --muted:#6b7280;
+    --accent:#1f5fa9; --danger:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .spacer{flex:1}
+  header select{width:auto;padding:6px 8px}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+  button:hover{background:#f0f2f5}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button.mini{padding:3px 9px;font-size:12px}
+  button.del{color:var(--danger);border-color:#e6c9c9}
+  .wrap{display:grid;grid-template-columns:minmax(420px,1fr) minmax(460px,1fr);gap:18px;padding:18px;align-items:start}
+  @media (max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px}
+  legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--accent)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  label.withcopy{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+  button.copy{padding:1px 8px;font-size:11px;color:var(--accent);border-color:#c5d5e8;background:#f2f7fc;
+              border-radius:4px;white-space:nowrap;line-height:1.6}
+  button.copy:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+  input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  textarea{resize:vertical;min-height:48px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .card{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:10px;margin-bottom:10px;background:#fbfcfd}
+  .card .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .sub{background:#fff;border-left-color:#b9c4d1;margin-top:10px}
+  .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .hide{display:none!important}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .echo{font-size:11px;color:var(--accent);margin-top:3px;min-height:1px}
+  .status{font-size:12px;color:var(--muted);max-width:38ch}
+  .status.error{color:var(--danger);font-weight:600;max-width:none}
+  label.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:10px 0 2px}
+  label.check input{width:auto;margin:0}
+  .lhbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .lhname{font-size:12px;color:var(--muted);flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lhname.set{color:var(--accent);font-weight:600}
+  /* document look — shared by preview, the .doc fallback and print */
+  #previewWrap{position:sticky;top:64px}
+  #preview{border:1px solid var(--line);border-radius:6px;padding:56px 60px;max-height:80vh;overflow:auto}
+  .doc{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;color:#000}
+  .doc h2{text-align:center;font-size:1.05em;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          margin:0 0 18px;font-family:inherit}
+  .doc p{margin:0 0 9px;text-align:justify}
+  .doc p.plain{text-align:left}
+  .doc .twocol{display:flex;gap:0;margin:0 0 9px}
+  .doc .twocol .lab{width:33mm;flex:none;white-space:pre-line}
+  .doc .twocol .body{flex:1;white-space:pre-line}
+  .doc .bracket{display:flex;margin:0}
+  .doc .bracket .t{width:80mm;flex:none}
+  .doc .clausehead{font-weight:700;margin:16px 0 8px;text-align:left;page-break-after:avoid;break-after:avoid}
+  .doc .lh{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:0 0 30px}
+  .doc .lh img{width:51.5mm;height:auto;display:block}
+  .doc .lhinfo{font-weight:700;font-size:10.5pt;line-height:1.55;color:#002060;white-space:nowrap}
+  .doc .lhfoot{margin-top:34px;padding-top:6px;border-top:1px solid #cfd6de;display:flex;
+               justify-content:space-between;gap:16px;font-size:9pt;color:#000}
+  .doc .sigrow{display:grid;gap:26px;margin:6px 0 14px;page-break-inside:avoid;break-inside:avoid}
+  .doc .sigline{border-bottom:1px solid #000;width:72%;height:1px;margin-bottom:4px}
+  .doc .sigbox{border:1px solid #000;margin-bottom:4px}
+  .doc .signame{font-weight:700}
+  .doc .sigcap{font-size:.95em}
+  .doc .sigdate{margin-top:9px}
+  .doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}
+  @media print{
+    @page{size:A4;margin:20mm}
+    header,.wrap>.panel:first-child{display:none}
+    .wrap{display:block;padding:0}
+    #previewWrap{position:static}
+    #preview{border:none;border-radius:0;max-height:none;overflow:visible;padding:0}
+    .panel{border:none;padding:0}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deed of Assignment Builder</h1>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <button onclick="saveFile()">Save draft…</button>
+  <button onclick="openFile()">Open draft…</button>
+  <input type="file" id="fileInput" accept=".json" class="hide" onchange="handleFilePick(this)">
+  <select id="samplePick" onchange="loadSample(this.value); this.selectedIndex=0" title="Fill the form with example data">
+    <option value="">Load sample…</option>
+    <option value="nofee">No further consideration</option>
+    <option value="settlement">Fee on settlement</option>
+    <option value="instalments">Fee in instalments</option>
+  </select>
+  <button onclick="resetAll()">Clear</button>
+  <button class="primary" onclick="downloadDocx()">Download .docx</button>
+  <button class="primary" onclick="downloadPdf()">Download .pdf</button>
+</header>
+
+<div class="wrap">
+  <!-- ============================== FORM ============================== -->
+  <div class="panel">
+    <fieldset>
+      <legend>The deed</legend>
+      <label>Date of the deed</label>
+      <input type="date" id="deedDate" oninput="render()" onchange="render()">
+      <div class="echo" id="deedDateEcho"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Assignor</legend>
+      <div id="assignors"></div>
+      <div class="addbar" id="assignorsAdd"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Assignee</legend>
+      <div id="assignees"></div>
+      <div class="addbar" id="assigneesAdd"></div>
+      <div class="hint">Email addresses entered against the assignee — or against its directors or
+        trustees — print under the parties as <em>Assignee's Email(s)</em>.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>The contract</legend>
+      <div class="row">
+        <div>
+          <label>Contract</label>
+          <select id="contractName" onchange="render()">
+            <option>Contract for Sale and Purchase</option>
+            <option selected>Contract for the Sale of Residential Property</option>
+            <option>Contract for the Sale of Rural Land Property</option>
+            <option>Contract for the Sale of Commercial Property</option>
+            <option>Contract for the Sale of Vacant Land</option>
+            <option value="__other">Other (type below)</option>
+          </select>
+          <input id="contractNameOther" class="hide" placeholder="Contract for the Sale of …" oninput="render()">
+        </div>
+        <div>
+          <label>Contract date</label>
+          <input type="date" id="contractDate" oninput="render()" onchange="render()">
+          <div class="echo" id="contractDateEcho"></div>
+        </div>
+      </div>
+
+      <label>Vendor under the contract</label>
+      <div id="vendors"></div>
+      <div class="addbar" id="vendorsAdd"></div>
+
+      <label>Purchaser under the contract</label>
+      <select id="purchaserIs" onchange="renderAll()">
+        <option value="assignor" selected>The Assignor is the purchaser</option>
+        <option value="named">A separate purchaser, named below</option>
+      </select>
+      <div id="purchaserBox" class="hide">
+        <div id="purchasers"></div>
+        <div class="addbar" id="purchasersAdd"></div>
+      </div>
+
+      <label class="check"><input type="checkbox" id="priorDeed" onchange="renderAll()">
+        <span>The purchaser has already assigned by an earlier deed</span></label>
+      <div id="priorDeedBox" class="hide">
+        <label>Date of the earlier deed of assignment</label>
+        <input type="date" id="priorDeedDate" oninput="render()" onchange="render()">
+        <div class="echo" id="priorDeedEcho"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>The land</legend>
+      <div id="properties"></div>
+      <div class="addbar"><button class="mini" onclick="addProperty()">+ Add property / title</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Consideration</legend>
+      <label>This deed is</label>
+      <select id="payMode" onchange="renderAll()">
+        <option value="fee" selected>For a further consideration — an assignment fee</option>
+        <option value="nofee">Without any further consideration or assignment fee</option>
+      </select>
+      <div class="row">
+        <div><label>Contract purchase price</label>
+          <input id="price" placeholder="0.00" oninput="render()">
+          <div class="echo" id="priceEcho"></div></div>
+        <div><label>Deposit under the contract</label>
+          <input id="deposit" placeholder="0.00" oninput="render()">
+          <div class="echo" id="depositEcho"></div></div>
+      </div>
+      <div id="feeAmountBox">
+        <label>Assignment fee</label>
+        <input id="fee" placeholder="0.00" oninput="render()">
+        <div class="echo" id="feeEcho"></div>
+      </div>
+      <label>Trust account the money is paid to</label>
+      <input id="trustAccount" value="Acquire Conveyancing Trust Account" oninput="render()">
+    </fieldset>
+
+    <fieldset>
+      <legend>Deposit — how it is paid</legend>
+      <label>Paid</label>
+      <select id="depMode" onchange="renderAll()">
+        <option value="single" selected>In one payment</option>
+        <option value="parts">In instalments</option>
+      </select>
+      <div id="depSingle"></div>
+      <div id="depParts" class="hide">
+        <div id="depPartRows"></div>
+        <div class="addbar"><button class="mini" onclick="addPart('deposit')">+ Add instalment</button></div>
+        <div class="echo" id="depPartsEcho"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="depNonRefundable" checked onchange="render()">
+        <span>Say the deposit is non-refundable</span></label>
+      <label class="check"><input type="checkbox" id="vendorCredit" checked onchange="render()">
+        <span>Vendor gives credit for the deposit at settlement</span></label>
+    </fieldset>
+
+    <fieldset id="feeTermsSet">
+      <legend>Assignment fee — how it is paid</legend>
+      <label>Paid</label>
+      <select id="feeMode" onchange="renderAll()">
+        <option value="single" selected>In one payment</option>
+        <option value="parts">In instalments</option>
+      </select>
+      <div id="feeSingle"></div>
+      <div id="feeParts" class="hide">
+        <div id="feePartRows"></div>
+        <div class="addbar"><button class="mini" onclick="addPart('fee')">+ Add instalment</button></div>
+        <div class="echo" id="feePartsEcho"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="feeNonRefundable" checked onchange="render()">
+        <span>Say the assignment fee is non-refundable</span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Further payment terms</legend>
+      <div id="extras"></div>
+      <div class="addbar"><button class="mini" onclick="addExtra()">+ Add a term</button></div>
+      <div class="hint">Anything else that belongs in the payment schedule. Each one prints as a
+        further numbered item at the end of it.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Document options</legend>
+      <label class="check"><input type="checkbox" id="useLetterhead" onchange="render()">
+        <span>Print on letterhead</span></label>
+      <div class="lhbar">
+        <span class="lhname" id="lhName">No letterhead loaded</span>
+        <button class="mini" onclick="document.getElementById('lhFile').click()">Upload .docx…</button>
+        <button class="mini del" id="lhClear" onclick="clearLetterhead()">Remove</button>
+        <input type="file" id="lhFile" accept=".docx" class="hide" onchange="pickLetterhead(this)">
+      </div>
+      <div class="hint">Upload your firm's letterhead as a Word file. Its header, footer and page setup
+        are reused for the Word download; the preview and PDF reproduce the logo and text. Stored in this
+        browser, and shared with the other tools.</div>
+      <label>Document title</label>
+      <input id="docTitle" value="DEED OF ASSIGNMENT" oninput="render()">
+      <div class="row">
+        <div><label>Body text size</label>
+          <select id="fontSize" onchange="render()">
+            <option value="10">10pt</option>
+            <option value="11" selected>11pt</option>
+            <option value="12">12pt</option>
+          </select></div>
+        <div><label>Signature style</label>
+          <select id="sigStyle" onchange="render()">
+            <option value="box2" selected>Boxes — two across</option>
+            <option value="box1">Boxes — one per row</option>
+            <option value="line">Ruled lines — one per row</option>
+          </select></div>
+      </div>
+      <label>Space for each signature</label>
+      <select id="sigSpace" onchange="render()">
+        <option value="compact">Compact — fits the most on a page</option>
+        <option value="standard">Standard</option>
+        <option value="generous" selected>Generous — room for DocuSign fields</option>
+        <option value="wide">Wide — full signature box</option>
+      </select>
+      <label class="check"><input type="checkbox" id="sigDate" checked onchange="render()">
+        <span>Add a date line under each signature</span></label>
+      <label class="check"><input type="checkbox" id="witnessLines" checked onchange="render()">
+        <span>Add a witness line after each execution block</span></label>
+      <label class="check"><input type="checkbox" id="pageNumbers" checked onchange="render()">
+        <span>Number the pages (ignored on letterhead, which brings its own footer)</span></label>
+    </fieldset>
+  </div>
+
+  <!-- ============================ PREVIEW ============================= -->
+  <div id="previewWrap">
+    <div class="panel">
+      <div class="status" style="margin-bottom:8px">Live preview</div>
+      <div id="preview" class="doc"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  State
+ *
+ *  Assignors, assignees, vendors and purchasers are all lists of
+ *  "parties" sharing one shape, so any list can mix entity types.
+ *  The payment schedule is structured rather than free text, because
+ *  the same amounts have to reappear, word for word, in several places.
+ * ------------------------------------------------------------------ */
+const S = {
+  assignors: [], assignees: [], vendors: [], purchasers: [], properties: [],
+  deposit: {parts: []},
+  fee:     {parts: []},
+  extras:  []
+};
+
+const KINDS = {
+  individual:       'Individual',
+  company:          'Company',
+  trust_corporate:  'Trust — corporate trustee',
+  trust_individual: 'Trust — individual trustee(s)'
+};
+const ROLES = ['Director', 'Secretary', 'Director/Secretary', 'Sole Director'];
+const PH = {
+  name:'Given names and surname', addr:'Street address, Suburb STATE 0000',
+  company:'Company name Pty Ltd', trust:'Trust name', email:'name@example.com',
+  acn:'000 000 000', abn:'00 000 000 000', volume:'0000', folio:'00'
+};
+
+const uid  = () => Math.random().toString(36).slice(2, 9);
+const val  = id => (document.getElementById(id)?.value || '').trim();
+const chk  = id => !!document.getElementById(id)?.checked;
+const esc  = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const find = (listName, id) => S[listName].find(x => x.id === id);
+
+function newParty(kind) {
+  return {id:uid(), kind, name:'', address:'', email:'', acn:'', abn:'', trustName:'', nominee:false,
+          officers: (kind === 'company' || kind === 'trust_corporate') ? [newOfficer()] : [],
+          trustees: kind === 'trust_individual' ? [newTrustee()] : []};
+}
+const newOfficer = () => ({id:uid(), name:'', role:'Director', address:'', email:''});
+const newTrustee = () => ({id:uid(), name:'', address:'', email:''});
+const newPart    = () => ({id:uid(), label:'', amount:'', when:'date', date:'', payee:'trust', release:true});
+
+/* ---- mutations ---- */
+function addParty(listName, kind)      { S[listName].push(newParty(kind)); renderAll(); }
+function removeParty(listName, id)     { S[listName] = S[listName].filter(x => x.id !== id); renderAll(); }
+function setParty(listName, id, f, v)  { const p = find(listName, id); if (p) { p[f] = v; render(); } }
+function addSub(listName, pid, key)    { find(listName, pid)[key].push(key === 'officers' ? newOfficer() : newTrustee()); renderAll(); }
+function removeSub(listName, pid, key, sid) {
+  const p = find(listName, pid);
+  p[key] = p[key].filter(x => x.id !== sid);
+  renderAll();
+}
+function setSub(listName, pid, key, sid, f, v) {
+  const s = find(listName, pid)[key].find(x => x.id === sid);
+  if (s) { s[f] = v; render(); }
+}
+function addProperty()         { S.properties.push({id:uid(), address:'', legal:'', volume:'', folio:'', extent:'whole', portion:''}); renderAll(); }
+function removeProperty(id)    { S.properties = S.properties.filter(x => x.id !== id); renderAll(); }
+function setProperty(id, f, v) { const p = find('properties', id); if (p) { p[f] = v; f === 'extent' ? renderAll() : render(); } }
+
+function addPart(which)             { S[which].parts.push(newPart()); renderAll(); }
+function removePart(which, id)      { S[which].parts = S[which].parts.filter(x => x.id !== id); renderAll(); }
+function setPart(which, id, f, v)   {
+  const p = S[which].parts.find(x => x.id === id);
+  if (!p) return;
+  p[f] = f === 'release' ? !!v : v;
+  f === 'when' ? renderAll() : render();
+}
+function addExtra()             { S.extras.push({id:uid(), text:''}); renderAll(); }
+function removeExtra(id)        { S.extras = S.extras.filter(x => x.id !== id); renderAll(); }
+function setExtra(id, v)        { const e = S.extras.find(x => x.id === id); if (e) { e.text = v; render(); } }
+
+/* ------------------------------------------------------------------ *
+ *  Money and dates
+ * ------------------------------------------------------------------ */
+const BLANK = '_'.repeat(20);
+
+/** Amounts are typed however the user likes — "2,500,000", "$2.5m" is not
+    accepted, but commas, spaces and a dollar sign are all ignored. */
+function num(text) {
+  const n = parseFloat(String(text ?? '').replace(/[^0-9.]/g, ''));
+  return isFinite(n) ? n : 0;
+}
+const money = n => '$' + n.toLocaleString('en-AU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+/** An amount as it prints: "$25,000.00", or a rule when nothing is entered. */
+const amt = text => (String(text ?? '').trim() ? money(num(text)) : BLANK);
+
+const ONES = ['','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve',
+              'thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function under1000(n) {
+  let s = '';
+  if (n >= 100) { s += ONES[Math.floor(n / 100)] + ' hundred'; n %= 100; if (n) s += ' '; }
+  if (n >= 20)  { s += TENS[Math.floor(n / 10)]; if (n % 10) s += '-' + ONES[n % 10]; }
+  else if (n)   { s += ONES[n]; }
+  return s;
+}
+function wholeWords(n) {
+  if (n === 0) return 'zero';
+  const out = [];
+  [['billion', 1e9], ['million', 1e6], ['thousand', 1e3]].forEach(([name, v]) => {
+    const q = Math.floor(n / v);
+    if (q) { out.push(under1000(q) + ' ' + name); n -= q * v; }
+  });
+  if (n) out.push(under1000(n));
+  return out.join(' ');
+}
+/** "$25,000.00 (twenty-five thousand dollars)" — the words are generated, so
+    the figures and the words can never drift apart. */
+function amountWords(n) {
+  const dollars = Math.floor(n + 1e-9);
+  const cents = Math.round((n - dollars) * 100);
+  let s = wholeWords(dollars) + ' dollar' + (dollars === 1 ? '' : 's');
+  if (cents) s += ' and ' + wholeWords(cents) + ' cent' + (cents === 1 ? '' : 's');
+  return s;
+}
+const inWords = text => (String(text ?? '').trim() ? amountWords(num(text)) : BLANK);
+/** "$25,000.00 (twenty-five thousand dollars)" */
+const amtWords = text => amt(text) + ' (' + inWords(text) + ')';
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+const ordinal = d => d + (['th','st','nd','rd'][(d % 100 - 20) % 10] || ['th','st','nd','rd'][d % 100] || 'th');
+/** "11th of May 2026" — the form every date takes in this deed. */
+function longDate(raw) {
+  if (!raw) return BLANK;
+  const [y, m, d] = String(raw).split('-').map(Number);
+  if (!y || !m || !d) return BLANK;
+  return ordinal(d) + ' of ' + MONTHS[m - 1] + ' ' + y;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Form rendering
+ * ------------------------------------------------------------------ */
+function addBar(listName) {
+  return Object.entries(KINDS)
+    .map(([k, lbl]) => `<button class="mini" onclick="addParty('${listName}','${k}')">+ ${lbl}</button>`)
+    .join('');
+}
+
+/* ---- "Same as above" address copying -------------------------------- *
+ * Most parties in a matter share an address, so every address field that
+ * has an earlier address to inherit offers a one-click copy.
+ * ------------------------------------------------------------------- */
+function lastAddressBefore(list, id) {
+  const i = list.findIndex(x => x.id === id);
+  for (let j = i - 1; j >= 0; j--) {
+    if ((list[j].address || '').trim()) return list[j].address;
+  }
+  return '';
+}
+const partyAddressSource = (listName, id) => lastAddressBefore(S[listName], id);
+function subAddressSource(listName, pid, key, sid) {
+  const p = find(listName, pid);
+  return lastAddressBefore(p[key], sid) || (p.address || '').trim();
+}
+function copyPartyAddress(listName, id) {
+  const src = partyAddressSource(listName, id);
+  if (src) { setParty(listName, id, 'address', src); renderAll(); }
+}
+function copySubAddress(listName, pid, key, sid) {
+  const src = subAddressSource(listName, pid, key, sid);
+  if (src) { setSub(listName, pid, key, sid, 'address', src); renderAll(); }
+}
+function addressLabel(text, source, onclick) {
+  if (!source) return `<label>${text}</label>`;
+  const oneLine = source.replace(/\s*\n\s*/g, ', ');
+  return `<label class="withcopy"><span>${text}</span>
+    <button type="button" class="copy" title="Use ${esc(oneLine)}" onclick="${onclick}">↑ Same as above</button>
+  </label>`;
+}
+
+function officerRows(listName, p) {
+  return p.officers.map((o, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Officer ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','officers','${o.id}')">Remove</button></div>
+      <div class="row">
+        <div><label>Name</label>
+          <input value="${esc(o.name)}" placeholder="${PH.name}"
+                 oninput="setSub('${listName}','${p.id}','officers','${o.id}','name',this.value)"></div>
+        <div><label>Position</label>
+          <select onchange="setSub('${listName}','${p.id}','officers','${o.id}','role',this.value)">
+            ${ROLES.map(r => `<option ${o.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+          </select></div>
+      </div>
+      <label>Email</label>
+      <input value="${esc(o.email)}" placeholder="${PH.email}"
+             oninput="setSub('${listName}','${p.id}','officers','${o.id}','email',this.value)">
+      ${addressLabel('Address', subAddressSource(listName, p.id, 'officers', o.id),
+                     `copySubAddress('${listName}','${p.id}','officers','${o.id}')`)}
+      <textarea placeholder="${PH.addr}"
+        oninput="setSub('${listName}','${p.id}','officers','${o.id}','address',this.value)">${esc(o.address)}</textarea>
+    </div>`).join('');
+}
+
+function trusteeRows(listName, p) {
+  return p.trustees.map((t, i) => `
+    <div class="card sub">
+      <div class="card-head"><span>Trustee ${i + 1}</span>
+        <button class="mini del" onclick="removeSub('${listName}','${p.id}','trustees','${t.id}')">Remove</button></div>
+      <label>Name</label>
+      <input value="${esc(t.name)}" placeholder="${PH.name}"
+             oninput="setSub('${listName}','${p.id}','trustees','${t.id}','name',this.value)">
+      <label>Email</label>
+      <input value="${esc(t.email)}" placeholder="${PH.email}"
+             oninput="setSub('${listName}','${p.id}','trustees','${t.id}','email',this.value)">
+      ${addressLabel('Address', subAddressSource(listName, p.id, 'trustees', t.id),
+                     `copySubAddress('${listName}','${p.id}','trustees','${t.id}')`)}
+      <textarea placeholder="${PH.addr}"
+        oninput="setSub('${listName}','${p.id}','trustees','${t.id}','address',this.value)">${esc(t.address)}</textarea>
+    </div>`).join('');
+}
+
+function partyCard(listName, p, i) {
+  const head = `<div class="card-head">
+      <span>${i + 1}. ${KINDS[p.kind]}</span>
+      <button class="mini del" onclick="removeParty('${listName}','${p.id}')">Remove</button>
+    </div>`;
+  const set = f => `setParty('${listName}','${p.id}','${f}',this.value)`;
+  const addrLabel = text => addressLabel(text, partyAddressSource(listName, p.id),
+                                         `copyPartyAddress('${listName}','${p.id}')`);
+  /* "and/or Nominee" is offered on the parties to the deed itself, where an
+     assignee commonly takes in a company yet to be formed. */
+  const nominee = ['assignors', 'assignees'].includes(listName)
+    ? `<label class="check"><input type="checkbox" ${p.nominee ? 'checked' : ''}
+         onchange="setParty('${listName}','${p.id}','nominee',this.checked)">
+         <span>and/or Nominee</span></label>` : '';
+
+  if (p.kind === 'individual') {
+    return `<div class="card">${head}
+      <label>Full name</label>
+      <input value="${esc(p.name)}" placeholder="${PH.name}" oninput="${set('name')}">
+      ${addrLabel('Address')}
+      <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+      <label>Email</label>
+      <input value="${esc(p.email)}" placeholder="${PH.email}" oninput="${set('email')}">
+      ${nominee}
+    </div>`;
+  }
+
+  const companyBlock = label => `
+    <label>${label}</label>
+    <input value="${esc(p.name)}" placeholder="${PH.company}" oninput="${set('name')}">
+    <div class="row">
+      <div><label>ACN</label><input value="${esc(p.acn)}" placeholder="${PH.acn}" oninput="${set('acn')}"></div>
+      <div><label>ABN</label><input value="${esc(p.abn)}" placeholder="${PH.abn}" oninput="${set('abn')}"></div>
+    </div>
+    ${addrLabel('Address')}
+    <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+    ${nominee}
+    <label>Directors / secretaries (signing)</label>
+    ${officerRows(listName, p)}
+    <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','officers')">+ Add officer</button></div>`;
+
+  if (p.kind === 'company') return `<div class="card">${head}${companyBlock('Company name')}</div>`;
+
+  if (p.kind === 'trust_corporate') return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      ${companyBlock('Corporate trustee name')}
+    </div>`;
+
+  return `<div class="card">${head}
+      <label>Trust name</label>
+      <input value="${esc(p.trustName)}" placeholder="${PH.trust}" oninput="${set('trustName')}">
+      <label>Trustees</label>
+      ${trusteeRows(listName, p)}
+      <div class="addbar"><button class="mini" onclick="addSub('${listName}','${p.id}','trustees')">+ Add trustee</button></div>
+      ${addrLabel("Trust address (optional — defaults to the trustees' address)")}
+      <textarea placeholder="${PH.addr}" oninput="${set('address')}">${esc(p.address)}</textarea>
+      ${nominee}
+    </div>`;
+}
+
+/* ---- payment timing, shared by the single payments and the instalments ---- */
+const WHENS = {
+  signing:    'Immediately on signing this deed',
+  settlement: 'On the day of settlement',
+  date:       'On or before a date'
+};
+function whenControls(idPrefix, when, dateVal, onWhen, onDate) {
+  return `<div class="row">
+      <div><label>When</label>
+        <select onchange="${onWhen}">
+          ${Object.entries(WHENS).map(([k, lbl]) =>
+            `<option value="${k}" ${when === k ? 'selected' : ''}>${lbl}</option>`).join('')}
+        </select></div>
+      <div class="${when === 'date' ? '' : 'hide'}"><label>Date</label>
+        <input type="date" value="${esc(dateVal || '')}" oninput="${onDate}" onchange="${onDate}"></div>
+    </div>`;
+}
+const payeeControl = (payee, onChange) => `<label>Paid to</label>
+    <select onchange="${onChange}">
+      <option value="trust" ${payee === 'trust' ? 'selected' : ''}>The trust account</option>
+      <option value="assignor" ${payee === 'assignor' ? 'selected' : ''}>The Assignor directly</option>
+    </select>`;
+
+/** The single-payment controls for the deposit or the fee. */
+function singleTerms(which) {
+  const t = S[which];
+  const set = f => `setTerm('${which}','${f}',this.value)`;
+  return whenControls(which, t.when, t.date, set('when'), set('date')) +
+    payeeControl(t.payee, set('payee')) +
+    `<label class="check ${t.payee === 'trust' ? '' : 'hide'}">
+       <input type="checkbox" ${t.release ? 'checked' : ''}
+              onchange="setTerm('${which}','release',this.checked)">
+       <span>Released to the Assignor immediately by the Assignor's conveyancer</span></label>`;
+}
+function setTerm(which, f, v) {
+  S[which][f] = f === 'release' ? !!v : v;
+  (f === 'when' || f === 'payee') ? renderAll() : render();
+}
+
+function partRows(which) {
+  return S[which].parts.map((p, i) => {
+    const set = f => `setPart('${which}','${p.id}','${f}',this.value)`;
+    return `<div class="card sub">
+      <div class="card-head"><span>Instalment ${i + 1} — ${esc(partLabel(S[which].parts, i))}</span>
+        <button class="mini del" onclick="removePart('${which}','${p.id}')">Remove</button></div>
+      <div class="row">
+        <div><label>Amount</label>
+          <input value="${esc(p.amount)}" placeholder="0.00" oninput="${set('amount')}"></div>
+        <div><label>Wording (optional)</label>
+          <input value="${esc(p.label)}" placeholder="${esc(partLabel(S[which].parts, i))}" oninput="${set('label')}"></div>
+      </div>
+      ${whenControls(which + i, p.when, p.date, set('when'), set('date'))}
+      ${payeeControl(p.payee, set('payee'))}
+      <label class="check ${p.payee === 'trust' ? '' : 'hide'}">
+        <input type="checkbox" ${p.release ? 'checked' : ''}
+               onchange="setPart('${which}','${p.id}','release',this.checked)">
+        <span>Released to the Assignor immediately by the Assignor's conveyancer</span></label>
+    </div>`;
+  }).join('');
+}
+
+/** Instalments name themselves by position, unless the user words one. */
+function partLabel(parts, i) {
+  if (parts[i].label.trim()) return parts[i].label.trim();
+  if (parts.length === 1) return 'An amount';
+  if (i === 0) return 'An initial amount';
+  if (i === parts.length - 1) return 'The balance amount';
+  return 'A further amount';
+}
+
+/** Instalments that do not add up to the total are a drafting error worth
+    catching before the deed goes out, so the shortfall is shown as you type. */
+function partsEcho(which, total) {
+  const parts = S[which].parts;
+  if (!parts.length) return '';
+  const sum = parts.reduce((s, p) => s + num(p.amount), 0);
+  if (!total) return 'Instalments total ' + money(sum);
+  const diff = +(total - sum).toFixed(2);
+  if (Math.abs(diff) < 0.005) return 'Instalments total ' + money(sum) + ' — agrees with the total';
+  return 'Instalments total ' + money(sum) + ' — ' +
+         (diff > 0 ? money(diff) + ' short of ' : money(-diff) + ' more than ') + money(total);
+}
+
+function renderForm() {
+  ['assignors', 'assignees', 'vendors', 'purchasers'].forEach(listName => {
+    document.getElementById(listName).innerHTML =
+      S[listName].map((p, i) => partyCard(listName, p, i)).join('');
+    document.getElementById(listName + 'Add').innerHTML = addBar(listName);
+  });
+
+  document.getElementById('properties').innerHTML = S.properties.map((pr, i) => `
+    <div class="card">
+      <div class="card-head"><span>Property ${i + 1}</span>
+        <button class="mini del" onclick="removeProperty('${pr.id}')">Remove</button></div>
+      <label>Property address</label>
+      <textarea placeholder="${PH.addr}" oninput="setProperty('${pr.id}','address',this.value)">${esc(pr.address)}</textarea>
+      <label>Legal description (optional)</label>
+      <textarea placeholder="Allotment 0 in Deposited Plan 00000 in the area named … Hundred of …"
+        oninput="setProperty('${pr.id}','legal',this.value)">${esc(pr.legal)}</textarea>
+      <div class="row">
+        <div><label>CT Volume</label><input value="${esc(pr.volume)}" placeholder="${PH.volume}" oninput="setProperty('${pr.id}','volume',this.value)"></div>
+        <div><label>CT Folio</label><input value="${esc(pr.folio)}" placeholder="${PH.folio}" oninput="setProperty('${pr.id}','folio',this.value)"></div>
+      </div>
+      <label>Extent</label>
+      <select onchange="setProperty('${pr.id}','extent',this.value)">
+        <option value="whole" ${pr.extent === 'whole' ? 'selected' : ''}>Whole of the land</option>
+        <option value="portion" ${pr.extent === 'portion' ? 'selected' : ''}>Portion of the land</option>
+      </select>
+      <div class="${pr.extent === 'portion' ? '' : 'hide'}">
+        <label>Portion description</label>
+        <input value="${esc(pr.portion)}" placeholder="Allotment 0 in Deposited Plan 00000"
+               oninput="setProperty('${pr.id}','portion',this.value)">
+      </div>
+    </div>`).join('');
+
+  document.getElementById('depSingle').innerHTML = singleTerms('deposit');
+  document.getElementById('feeSingle').innerHTML = singleTerms('fee');
+  document.getElementById('depPartRows').innerHTML = partRows('deposit');
+  document.getElementById('feePartRows').innerHTML = partRows('fee');
+
+  document.getElementById('extras').innerHTML = S.extras.map((e, i) => `
+    <div class="card">
+      <div class="card-head"><span>Term ${i + 1}</span>
+        <button class="mini del" onclick="removeExtra('${e.id}')">Remove</button></div>
+      <textarea placeholder="A further term of payment" oninput="setExtra('${e.id}',this.value)">${esc(e.text)}</textarea>
+    </div>`).join('');
+}
+
+function toggleSections() {
+  const named = val('purchaserIs') === 'named';
+  document.getElementById('purchaserBox').classList.toggle('hide', !named);
+  document.getElementById('priorDeedBox').classList.toggle('hide', !chk('priorDeed'));
+  document.getElementById('contractNameOther').classList.toggle('hide', val('contractName') !== '__other');
+
+  const fee = payMode() === 'fee';
+  document.getElementById('feeAmountBox').classList.toggle('hide', !fee);
+  document.getElementById('feeTermsSet').classList.toggle('hide', !fee);
+
+  document.getElementById('depSingle').classList.toggle('hide', val('depMode') !== 'single');
+  document.getElementById('depParts').classList.toggle('hide', val('depMode') !== 'parts');
+  document.getElementById('feeSingle').classList.toggle('hide', val('feeMode') !== 'single');
+  document.getElementById('feeParts').classList.toggle('hide', val('feeMode') !== 'parts');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Letterhead
+ *
+ *  The user uploads their firm's letterhead as a .docx. For the Word
+ *  download the letterhead file itself is used as the container — the
+ *  generated body is dropped into it — so headers, footers, fonts and
+ *  page setup are exactly the firm's own. The preview and the PDF can
+ *  only approximate that, so they reproduce the logo and the header and
+ *  footer text pulled out of the same file.
+ *
+ *  It is kept in this browser's local storage, shared by every tool.
+ * ------------------------------------------------------------------ */
+const LH_KEY = 'onePageTools.letterhead.v1';
+let LH = null;   // {name, docx: base64, logo: dataURI, logoMm, lines: [], footer}
+
+const onLetterhead = () => !!(LH && document.getElementById('useLetterhead')?.checked);
+
+function loadStoredLetterhead() {
+  try { LH = JSON.parse(localStorage.getItem(LH_KEY)) || null; }
+  catch { LH = null; }
+}
+
+function clearLetterhead() {
+  LH = null;
+  try { localStorage.removeItem(LH_KEY); } catch {}
+  const box = document.getElementById('useLetterhead');
+  if (box) box.checked = false;
+  renderAll();
+  setStatus('Letterhead removed');
+}
+
+async function pickLetterhead(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (typeof JSZip === 'undefined') {
+    setStatus('Cannot read the letterhead — the zip library did not load (are you offline?)', true);
+    return;
+  }
+  try {
+    LH = await parseLetterheadDocx(await file.arrayBuffer(), file.name);
+    try { localStorage.setItem(LH_KEY, JSON.stringify(LH)); }
+    catch { setStatus('Letterhead loaded, but too large to store — it will apply for this session only', true); }
+    document.getElementById('useLetterhead').checked = true;
+    renderAll();
+    if (!LH.logo && !LH.lines.length) {
+      setStatus('Loaded ' + file.name + ', but no header content was found in it', true);
+    } else {
+      setStatus('Letterhead loaded from ' + file.name);
+    }
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + file.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+const bytesToBase64 = bytes => {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const base64ToBytes = b64 => {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+const MIME = {png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+              bmp:'image/bmp', svg:'image/svg+xml', webp:'image/webp'};
+
+/** Shrink an oversized logo — letterheads often embed one far larger than it
+    prints at, which bloats both local storage and every PDF drawn from it. */
+async function downscale(dataUri, maxWidth) {
+  try {
+    const img = new Image();
+    img.src = dataUri;
+    await img.decode();
+    if (img.naturalWidth <= maxWidth) return dataUri;
+    const c = document.createElement('canvas');
+    c.width = maxWidth;
+    c.height = Math.round(img.naturalHeight * maxWidth / img.naturalWidth);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');            // keeps transparency
+  } catch { return dataUri; }
+}
+
+/** Text of each non-empty paragraph in a header/footer part. */
+function paragraphTexts(xml) {
+  return [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+    // `<w:t` must be followed by a space or `>`, or it also matches `<w:tab/>`
+    .map(m => [...m[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map(t => t[1]).join('')
+                .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+async function parseLetterheadDocx(buf, name) {
+  const zip = await JSZip.loadAsync(buf);
+  const docFile = zip.file('word/document.xml');
+  if (!docFile) throw new Error('this is not a Word document');
+  const docXml = await docFile.async('string');
+
+  const relsFile = zip.file('word/_rels/document.xml.rels');
+  const relsXml = relsFile ? await relsFile.async('string') : '';
+  const relTarget = xml => {
+    const map = {};
+    for (const m of xml.matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = (m[0].match(/Id="([^"]+)"/) || [])[1];
+      const tg = (m[0].match(/Target="([^"]+)"/) || [])[1];
+      if (id && tg) map[id] = tg.replace(/^\/?word\//, '');
+    }
+    return map;
+  };
+  const docRels = relTarget(relsXml);
+
+  // Prefer the first-page header when the template uses one, as letterheads do.
+  const refs = kind => [...docXml.matchAll(new RegExp('<w:' + kind + 'Reference\\b[^>]*/>', 'g'))]
+    .map(m => ({type: (m[0].match(/w:type="(\w+)"/) || [])[1],
+                target: docRels[(m[0].match(/r:id="([^"]+)"/) || [])[1]]}))
+    .filter(r => r.target);
+  const choose = list => {
+    const first = list.find(r => r.type === 'first');
+    if (/<w:titlePg\s*\/?>/.test(docXml) && first) return first.target;
+    return (list.find(r => r.type === 'default') || first || list[0] || {}).target;
+  };
+
+  const headerPart = choose(refs('header'));
+  const footerPart = choose(refs('footer'));
+
+  let logo = '', logoMm = {w: 51.5, h: 16.7}, lines = [];
+  if (headerPart) {
+    const hXml = await zip.file('word/' + headerPart).async('string');
+    lines = paragraphTexts(hXml);
+
+    const hRelsFile = zip.file('word/_rels/' + headerPart.split('/').pop() + '.rels');
+    const hRels = hRelsFile ? relTarget(await hRelsFile.async('string')) : {};
+    const embeds = [...hXml.matchAll(/r:embed="([^"]+)"/g)].map(m => hRels[m[1]]).filter(Boolean);
+
+    // the largest embedded image is the logo; small ones are icons
+    let best = null;
+    for (const target of [...new Set(embeds)]) {
+      const f = zip.file('word/' + target);
+      if (!f) continue;
+      const bytes = await f.async('uint8array');
+      if (!best || bytes.length > best.bytes.length) best = {target, bytes};
+    }
+    if (best) {
+      const ext = (best.target.split('.').pop() || 'png').toLowerCase();
+      logo = 'data:' + (MIME[ext] || 'image/png') + ';base64,' + bytesToBase64(best.bytes);
+      logo = await downscale(logo, 900);        // print-quality, but far smaller to store and to draw
+      const ext2 = hXml.match(/<wp:extent cx="(\d+)" cy="(\d+)"/);
+      if (ext2) logoMm = {w: +(ext2[1] / 36000).toFixed(1), h: +(ext2[2] / 36000).toFixed(1)};
+    }
+  }
+
+  let footer = '';
+  if (footerPart) {
+    footer = paragraphTexts(await zip.file('word/' + footerPart).async('string'))
+      .join('  |  ')
+      .replace(/\s*Page\s*\d*\s*of\s*\d*\s*$/i, '')     // page-number field text
+      .trim();
+  }
+
+  return {name, docx: bytesToBase64(new Uint8Array(buf)), logo, logoMm, lines, footer};
+}
+
+/* ------------------------------------------------------------------ *
+ *  Document options
+ * ------------------------------------------------------------------ */
+/* Vertical room for each signature — above the rule, or the height of the
+   box — so e-signature platforms have somewhere to anchor a field. */
+const SIG_SPACE = {
+  compact:  {px: 20, twips: 300,  mm: 7},
+  standard: {px: 42, twips: 640,  mm: 13},
+  generous: {px: 68, twips: 1040, mm: 21},
+  wide:     {px: 96, twips: 1480, mm: 30}
+};
+const sigSpace   = () => SIG_SPACE[val('sigSpace')] || SIG_SPACE.generous;
+const sigDated   = () => chk('sigDate');
+const witnessed  = () => chk('witnessLines');
+const numbered   = () => chk('pageNumbers') && !onLetterhead();
+const sigStyle   = () => val('sigStyle') || 'box2';
+const sigBoxed   = () => sigStyle() !== 'line';
+const perRow     = () => (sigStyle() === 'box2' ? 2 : 1);
+const payMode    = () => val('payMode') || 'fee';
+const ptSize     = () => +(val('fontSize') || 11);
+
+const clean  = s => (s || '').replace(/\s*\n\s*/g, ', ').replace(/,\s*,/g, ',').trim();
+const filled = list => list.filter(x => x.name || x.address);
+
+function joinList(arr) {
+  const a = arr.filter(Boolean);
+  if (!a.length) return '';
+  if (a.length === 1) return a[0];
+  return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+}
+
+/** "A and B of 5 X St" — people sharing an address are named together. */
+function peoplePhrase(people) {
+  const groups = [];
+  filled(people).forEach(p => {
+    const addr = clean(p.address);
+    const last = groups[groups.length - 1];
+    if (last && last.addr === addr) last.names.push(p.name);
+    else groups.push({addr, names: [p.name]});
+  });
+  return joinList(groups.map(g => joinList(g.names) + (g.addr ? ' of ' + g.addr : '')));
+}
+
+function companyName(p) {
+  let s = p.name || '';
+  const ids = [];
+  if (p.acn) ids.push('ACN: ' + p.acn);
+  if (p.abn) ids.push('ABN: ' + p.abn);
+  if (ids.length) s += ' (' + ids.join(', ') + ')';
+  return s;
+}
+
+/** The entity as it is named in the deed, address included. */
+function partyDescription(p) {
+  const nom = p.nominee ? ' and/or Nominee' : '';
+  const at  = a => (clean(a) ? ' of ' + clean(a) : '');
+  if (p.kind === 'individual')      return p.name || p.address ? p.name + nom + at(p.address) : '';
+  if (p.kind === 'company')         return companyName(p) + nom + at(p.address);
+  if (p.kind === 'trust_corporate') return companyName(p) + ' ATF ' + (p.trustName || BLANK) + nom + at(p.address);
+  const names = joinList(filled(p.trustees).map(t => t.name));
+  return (names || BLANK) + ' ATF ' + (p.trustName || BLANK) + nom +
+         at(p.address || filled(p.trustees)[0]?.address || '');
+}
+
+/** A whole list of parties, collapsing consecutive individuals on one address. */
+function partiesPhrase(list) {
+  const chunks = [];
+  let run = [];
+  const flush = () => { if (run.length) { chunks.push(peoplePhrase(run)); run = []; } };
+  list.forEach(p => {
+    if (p.kind === 'individual' && !p.nominee) { if (p.name || p.address) run.push(p); }
+    else { flush(); const s = partyDescription(p); if (s) chunks.push(s); }
+  });
+  flush();
+  return joinList(chunks);
+}
+
+/** Who physically signs for a party, and in what capacity — worded as the
+    deed words it: "as Director of Acme Pty Ltd (ACN: 000 000 000)". */
+function deedSignatories(list) {
+  const out = [];
+  list.forEach(p => {
+    if (p.kind === 'individual') {
+      if (p.name || p.address) out.push({name: p.name || BLANK, cap: ''});
+    } else if (p.kind === 'trust_individual') {
+      filled(p.trustees).forEach(t => out.push({
+        name: t.name || BLANK, cap: 'as Trustee of ' + (p.trustName || BLANK)}));
+    } else {
+      const of = p.kind === 'trust_corporate'
+        ? companyName(p) + ' ATF ' + (p.trustName || BLANK)
+        : companyName(p);
+      filled(p.officers).forEach(o => out.push({
+        name: o.name || BLANK, cap: 'as ' + (o.role || 'Director') + ' of ' + (of || BLANK)}));
+    }
+  });
+  return out;
+}
+
+/** Every email held against the assignee, with the person it belongs to. */
+function assigneeEmails() {
+  const out = [];
+  S.assignees.forEach(p => {
+    if (p.kind === 'individual') {
+      if (p.email) out.push({name: p.name, role: '', email: p.email});
+    } else if (p.kind === 'trust_individual') {
+      p.trustees.forEach(t => { if (t.email) out.push({name: t.name, role: 'Trustee', email: t.email}); });
+    } else {
+      if (p.email) out.push({name: p.name, role: '', email: p.email});
+      p.officers.forEach(o => { if (o.email) out.push({name: o.name, role: o.role || 'Director', email: o.email}); });
+    }
+  });
+  return out;
+}
+
+/** "the land situated at … and being …" */
+function landPhrase() {
+  const parts = S.properties.filter(pr => pr.address || pr.legal || pr.volume || pr.folio).map(pr => {
+    const ct = (pr.volume || pr.folio)
+      ? 'Certificate of Title Volume ' + (pr.volume || '____') + ' Folio ' + (pr.folio || '____')
+      : '';
+    const legal = clean(pr.legal);
+    let being;
+    if (pr.extent === 'portion') {
+      being = 'the portion of the land being ' + (pr.portion ? clean(pr.portion) : BLANK) +
+              (legal ? ' being ' + legal : '') + (ct ? ' in ' + ct : '');
+    } else if (legal) {
+      being = 'whole of ' + legal + (ct ? ' and being whole of the land in the ' + ct : '');
+    } else {
+      being = 'whole of the land comprised in ' + (ct || BLANK);
+    }
+    return (clean(pr.address) || BLANK) + ' and being ' + being;
+  });
+  return parts.length ? parts.join('; and the land situated at ') : BLANK;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The payment schedule
+ *
+ *  Built rather than typed, because the same figures reappear in the
+ *  recitals and again in clause 3, and a deed where they disagree is
+ *  worse than useless.
+ * ------------------------------------------------------------------ */
+const trustAccount = () => val('trustAccount') || 'the trust account';
+const payeePhrase  = payee => (payee === 'assignor' ? 'Assignor directly' : 'the ' + trustAccount());
+function whenPhrase(when, date) {
+  if (when === 'signing')    return 'immediately upon signing this agreement';
+  if (when === 'settlement') return 'on the day of settlement';
+  return 'on or before ' + longDate(date);
+}
+const releasePhrase = (what, sum) =>
+  ' and assignee agrees this ' + what + ' of ' + sum +
+  " to be release to assignor immediately by assignor's conveyancer.";
+
+/** The numbered items of the payment schedule, sub-items and all. */
+function scheduleItems() {
+  const items = [];
+  const dep = amt(val('deposit'));
+  const fee = amt(val('fee'));
+  const feeMode = payMode() === 'fee';
+
+  /* --- the deposit --- */
+  if (val('depMode') === 'parts') {
+    items.push({text: 'The total Deposit of ' + dep +
+                      ' shall become payable by the Assignee to the Assignor as follows:',
+                subs: S.deposit.parts.map((p, i) => partSentence(S.deposit.parts, i, 'amount'))});
+    if (chk('depNonRefundable')) {
+      items.push({text: 'The Assignee acknowledges and agrees that the Deposit of ' + dep + ' is non-refundable.'});
+    }
+  } else {
+    const t = S.deposit;
+    let s = 'Deposit amount of ' + dep + ' shall become payable ' + whenPhrase(t.when, t.date) +
+            ' to ' + payeePhrase(t.payee);
+    s += (t.payee === 'trust' && t.release) ? releasePhrase('Deposit amount', dep) : '.';
+    if (chk('depNonRefundable')) {
+      s += ' Assignee acknowledges that Deposit amount of ' + dep + ' is non-refundable.';
+    }
+    items.push({text: s});
+  }
+
+  if (chk('vendorCredit')) {
+    items.push({text: 'Vendor will give credit for total Deposit amount of ' + dep + ' at settlement.'});
+  }
+
+  /* --- the assignment fee --- */
+  if (feeMode) {
+    if (val('feeMode') === 'parts') {
+      items.push({text: 'The total Assignment Fee of ' + fee +
+                        ' shall become payable by the Assignee to the Assignor as follows:',
+                  subs: S.fee.parts.map((p, i) => partSentence(S.fee.parts, i, 'amount'))});
+    } else {
+      const t = S.fee;
+      let s = 'Assignment Fee of ' + fee + ' shall become payable ' + whenPhrase(t.when, t.date) +
+              ' to ' + payeePhrase(t.payee);
+      s += (t.payee === 'trust' && t.release) ? releasePhrase('amount', fee) : '.';
+      items.push({text: s});
+    }
+    if (chk('feeNonRefundable')) {
+      items.push({text: 'The Assignee acknowledges and agrees that the Assignment Fee of ' + fee +
+                        ' is non-refundable.'});
+    }
+  }
+
+  S.extras.forEach(e => { if (e.text.trim()) items.push({text: e.text.trim()}); });
+  return items;
+}
+
+function partSentence(parts, i, what) {
+  const p = parts[i];
+  const sum = amt(p.amount);
+  let s = partLabel(parts, i) + ' of ' + sum + ' shall become payable by the Assignee ' +
+          whenPhrase(p.when, p.date) + ' to ' + payeePhrase(p.payee);
+  s += (p.payee === 'trust' && p.release) ? releasePhrase(what, sum) : '.';
+  return s;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The fixed clauses
+ *
+ *  Reproduced from the firm's template and not built from the form —
+ *  only the two cross-references to the payment recital, and the deposit
+ *  figure in clause 3, change with the matter.
+ * ------------------------------------------------------------------ */
+function clauses(payLetter) {
+  return [
+    {n: '1', title: 'INTERPRETATION',
+     body: ['In the interpretation of this Deed: -'],
+     subs: [
+       ['1.1', '‘Assignment Date’ shall mean the date of execution of this Deed.'],
+       ['1.2', '‘Stamp Duty’ shall mean any stamp duty or similar charge imposed by any governmental ' +
+               'agency and includes any interest, fines, penalties or other charges imposed.'],
+       ['1.3', '‘Assignment Fee’ shall mean the increased consideration paid by the Assignee to the ' +
+               'Assignor that is in excess of the Contract Purchase Price including any applicable GST. ' +
+               'The Assignee shall also pay to the Assignor the deposit paid by the Assignor to the ' +
+               "Vendor or the Vendor's Agent."],
+       ['1.4', 'Words importing the singular shall embrace the plural and words importing one gender ' +
+               'shall embrace the other genders and vice versa respectively.'],
+       ['1.5', 'Headings are for convenience of reference only and shall not affect the construction ' +
+               'or interpretation of the covenants terms and condition herein contained.']
+     ]},
+
+    {n: '2', title: 'ASSIGNMENT',
+     body: ['In consideration of the Assignee accepting this assignment and undertaking to observe ' +
+            'perform and keep all and singular the covenants terms conditions provisos agreements ' +
+            'further terms rebates and restrictions expressed or implied in the Contract and on the ' +
+            'part of the Purchaser thereunder to be observed performed and kept AND IN CONSIDERATION ' +
+            'of the Assignee entering into the covenants with the Assignor hereinafter set forth of ' +
+            'the payment by the Assignee to the Assignor of moneys equivalent to the deposit moneys ' +
+            "already paid under the Contract the Assignor DOES HEREBY transfer and assign to the " +
+            "Assignee all of the Assignor's estate right title claim and interest in the Land and the " +
+            'Contract AND the Assignee does hereby accept such assignment']},
+
+    {n: '3', title: "ASSIGNEE'S DEPOSIT",
+     body: ['The Assignee shall pay a deposit of ' + amtWords(val('deposit')) +
+            ' as agreed in section ' + payLetter + ' of the deed.']},
+
+    {n: '4', title: "ASSIGNEE'S COVENANTS",
+     body: ['The Assignee hereby covenants and agrees with the Assignor as follows:'],
+     subs: [
+       ['4.1', 'the Assignee has received a copy of the Contract and Form 1 and has read and understood ' +
+               'the Contract and Form 1 and acknowledges the contents thereof.'],
+       ['4.2', 'From the date of this Deed of Assignment the Assignee shall perform and observe all ' +
+               'terms and conditions expressed or implied on that part of the Assignor under the ' +
+               'Contract and shall attend to all matters required to complete settlement of the Contract.'],
+       ['4.3', 'Assignee shall pay to the Assignor the deposit amount and assignment Fee as Stipulated ' +
+               'in Section "' + payLetter + '" of the deed.'],
+       ['4.4', 'From the date of the Deed of Assignment the Assignee shall indemnify and keep ' +
+               'indemnified the Assignor against all actions proceedings costs claims and demands by ' +
+               'reason of non-payment of the Purchase Price or breach or non-observance or ' +
+               'non-performance by the Assignee of the terms and conditions expressed or implied in ' +
+               'the Contract.']
+     ]},
+
+    {n: '5', title: 'COST AND STAMP DUTY',
+     subs: [
+       ['5.1', 'The Assignee shall be responsible for the payment of all stamp duty payable in respect ' +
+               'to this Deed of Assignment including but not limited to the Assignment Fee and the ' +
+               'Memorandum of Transfer.'],
+       ['5.2', 'The Assignor shall be responsible for the payment of the preparation of this Deed of ' +
+               'Assignment.']
+     ]},
+
+    {n: '6', title: 'GOODS AND SERVICES',
+     body: ['The parties acknowledge that the Assignment Fee and other payments specified in this ' +
+            'Assignment are inclusive of all goods and services taxes, within the meaning of A New Tax ' +
+            'System (Goods and Services Tax) Act 1999 ("GST") charged or levied in respect of Land ' +
+            'charged, levied or payable from time to time.']},
+
+    {n: '7', title: 'DEFAULT',
+     subs: [
+       ['7.1', 'In the event that the Assignee defaults in the observance or performance of any term or ' +
+               'condition contained in this Deed of Assignment on the part of the Assignee to be ' +
+               'required to be observed or performed in respect of the Contract in any way whatsoever ' +
+               'the Assignor may at any time give notice in writing requiring the Assignee to remedy ' +
+               'the default within a period of three (3) business days from the service of the notice ' +
+               'stating that if the default or breach is not remedied within the required time period ' +
+               'this Deed will terminate and;'],
+       ['7.2', 'without prejudice to any other legal rights or remedies the Assignor may have if the ' +
+               'default is not remedied within the required time period this Deed shall automatically ' +
+               'terminate unless before the expiration of the required period the Assignor withdraws ' +
+               'or extends the time period by notice in writing to the Assignee.'],
+       ['7.3', 'in the event that this Deed of Assignment is terminated pursuant to 7.2 hereof then ' +
+               "deposit Money and any other money already paid by the Assignee to the Assignor's " +
+               'Conveyancer (including any money released to assignor) shall forfeited entirely and ' +
+               "the Assignee authorises the Assignor's Conveyancer to pay any fund hold by assignor " +
+               'conveyancer to the Assignor within seven (7) days of the termination.']
+     ]},
+
+    {n: '8', title: 'NOTICES',
+     body: ['Any notice demand to be given or made on a party to this Deed of Assignment shall be in ' +
+            'writing signed by the party giving the notice or their authorised Agent and any notice ' +
+            'shall be deemed to have been duly served or made if it is;'],
+     subs: [
+       ['8.1', 'left at the address set out on this Deed of Assignment or last known place of abode or ' +
+               'business in South Australia of the party intended to receive the notice or demand or;'],
+       ['8.2', 'sent by registered mail addressed to the party to be served at such address or place of ' +
+               'abode or business. A notice or demand sent by registered mail shall be deemed to have ' +
+               'been served at a time when it would be delivered in the ordinary course of post.'],
+       ['8.3', 'Sent Via Email Address mentioned in the Deed.']
+     ]},
+
+    {n: '9', title: 'VENDOR CONSENT',
+     body: ['The Assignor and Assignee acknowledge and agree that if the Contract stipulates the ' +
+            "Vendor's consent is required for this Deed of Assignment and the vendor does not provide " +
+            'consent for the Deed of Assignment, then the Deed of Assignment will be mutually ' +
+            'terminated, and any deposit paid under this Deed will be refunded to the Assignee; and ' +
+            'the Assignor and Assignee will not have any recourse on the other party.']}
+  ];
+}
+
+/* ------------------------------------------------------------------ *
+ *  Document blocks — shared by the preview, the DOCX and the PDF
+ *
+ *  Indents are in millimetres from the left margin. `hang` is the width
+ *  of the marker column, so wrapped text lines up under the first word
+ *  rather than under the number.
+ * ------------------------------------------------------------------ */
+const IND = {
+  recital:   {indent: 0,  hang: 7},
+  under:     {indent: 7},              // text sitting under a recital
+  sum:       {indent: 12},
+  item:      {indent: 7,  hang: 7},
+  subitem:   {indent: 14, hang: 8},
+  clause:    {indent: 0},
+  body:      {indent: 8},
+  sub:       {indent: 8,  hang: 9}
+};
+
+function buildBlocks() {
+  const B = [];
+  const p    = (text, o = {}) => B.push({t:'p', text, ...o});
+  const item = (marker, text, o) => B.push({t:'item', marker, text, ...o});
+
+  const contractName = val('contractName') === '__other'
+    ? (val('contractNameOther') || BLANK) : val('contractName');
+  const assignorIsPurchaser = val('purchaserIs') !== 'named';
+  const vendors    = partiesPhrase(S.vendors) || BLANK;
+  const purchasers = partiesPhrase(S.purchasers) || BLANK;
+
+  B.push({t:'title', text: val('docTitle') || 'DEED OF ASSIGNMENT'});
+  p('THIS DEED made the ' + longDate(val('deedDate')), {cls:'plain'});
+
+  /* --- the parties --- */
+  B.push({t:'twocol', labels:['BETWEEN', 'AND'],
+          lines:[(partiesPhrase(S.assignors) || BLANK), '(Hereinafter called ‘the Assignor’).']});
+  B.push({t:'twocol', labels:[],
+          lines:[(partiesPhrase(S.assignees) || BLANK), '(Hereinafter called ‘the Assignee’).']});
+
+  const emails = assigneeEmails();
+  if (emails.length === 1 && !emails[0].role) {
+    B.push({t:'twocol', labels:["Assignee's Email:"], lines:[emails[0].email]});
+  } else if (emails.length) {
+    B.push({t:'twocol', labels:["Assignee's Email(s):"],
+            lines: emails.map(e => (e.name ? e.name + (e.role ? ' (' + e.role + ')' : '') + ': ' : '') + e.email)});
+  }
+
+  /* --- recitals --- */
+  p('WHEREAS:', {cls:'plain'});
+  let letterCode = 65;                         // 'A'
+  const letter = () => String.fromCharCode(letterCode++);
+
+  const opening = assignorIsPurchaser
+    ? 'The Assignor has entered into a ' + contractName + ' dated the '
+    : 'In reference to the ' + contractName + ' dated the ';
+  const purchaserClause = assignorIsPurchaser
+    ? 'the Assignor as the purchaser'
+    : purchasers + ' (hereinafter called ‘the Purchaser’) as the purchaser';
+  item(letter() + '.',
+    opening + longDate(val('contractDate')) + ' (hereinafter called ‘the Contract’) for the sale by ' +
+    vendors + ' (hereinafter called ‘the Vendor’) as the vendor and ' + purchaserClause +
+    ' in relation to the land situated at ' + landPhrase() + ' (hereinafter called ‘the Land’).',
+    IND.recital);
+
+  if (chk('priorDeed')) {
+    item(letter() + '.',
+      'Further to the Contract, the Purchaser has entered into a Deed of Assignment with the Assignor ' +
+      'dated the ' + longDate(val('priorDeedDate')) + ' for the Land.', IND.recital);
+  }
+
+  item(letter() + '.',
+    'Pursuant to the Contract dated ' + longDate(val('contractDate')) + ', a purchase price of ' +
+    amtWords(val('price')) + ' will be payable for the purchase of the Land in the Contract, ' +
+    'comprising a deposit of ' + amtWords(val('deposit')) + '.', IND.recital);
+
+  /* --- the payment recital: the one the rest of the deed points back to --- */
+  const payLetter = letter();
+  if (payMode() === 'nofee') {
+    item(payLetter + '.',
+      'The Assignee desires to purchase the Land from the Assignor without any further consideration ' +
+      'or assignment Fee.', IND.recital);
+    p('Deposit for the Land shall be payable in the following manner:', {cls:'plain', ...IND.under});
+  } else {
+    item(payLetter + '.',
+      'The Assignee desires to purchase the Land from the Assignor and shall pay the following:',
+      IND.recital);
+    // The total is only worth stating once both halves of it are known.
+    const both = val('price') && val('fee');
+    const total = num(val('price')) + num(val('fee'));
+    B.push({t:'sum', lines:[
+      amt(val('price')) + ' (Contract price)',
+      '+ ' + amt(val('fee')) + ' (Assignment Fee)',
+      '= ' + (both ? money(total) + ' (' + amountWords(total) + ')' : BLANK)
+    ], ...IND.sum});
+    p('Deposit and assignment fee for the Land which shall be payable in the following manner:',
+      {cls:'plain', ...IND.under});
+  }
+
+  scheduleItems().forEach((it, i) => {
+    item((i + 1) + '.', it.text, IND.item);
+    (it.subs || []).forEach((s, j) =>
+      item(String.fromCharCode(97 + j) + '.', s, IND.subitem));
+  });
+
+  item(letter() + '.',
+    'The Assignor has agreed to assign to the Assignee, who has agreed to take all their estate right ' +
+    'title claim and interest of the Assignor of in and to the Land under and by virtue of the ' +
+    'Contract subject to the several terms and conditions herein set forth.', IND.recital);
+
+  p('NOW THIS DEED WITNESSES AS FOLLOWS: -', {cls:'plain'});
+
+  /* --- the operative clauses --- */
+  clauses(payLetter).forEach(c => {
+    B.push({t:'clausehead', text: c.n + '. ' + c.title});
+    (c.body || []).forEach(text => p(text, IND.body));
+    (c.subs || []).forEach(([n, text]) => item(n, text, IND.sub));
+  });
+
+  /* --- execution --- */
+  p('IN WITNESS whereof the parties hereto have executed this Deed the day and year hereinbefore ' +
+    'first mentioned.', {top: 10});
+
+  executionBlock(B, 'Assignor', deedSignatories(S.assignors));
+  executionBlock(B, 'Assignee', deedSignatories(S.assignees));
+
+  return B;
+}
+
+function executionBlock(B, who, signers) {
+  B.push({t:'bracket', lines:['EXECUTED by the ' + who, 'in the presence of:', '']});
+  const list = signers.length ? signers : [{name: BLANK, cap: ''}];
+  const n = perRow();
+  for (let i = 0; i < list.length; i += n) B.push({t:'sigrow', cells: list.slice(i, i + n)});
+  if (witnessed()) B.push({t:'witness', cols: Math.min(list.length, perRow())});
+}
+
+/* ------------------------------------------------------------------ *
+ *  Preview
+ * ------------------------------------------------------------------ */
+function letterheadHtml() {
+  return `<div class="lh">
+      ${LH.logo ? `<img src="${LH.logo}" style="width:${LH.logoMm.w}mm" alt="">` : ''}
+      ${LH.lines.length ? `<div class="lhinfo">${LH.lines.map(esc).join('<br>')}</div>` : ''}
+    </div>`;
+}
+const letterheadFooterHtml = () => LH.footer
+  ? `<div class="lhfoot"><span>${esc(LH.footer)}</span><span>Page 1</span></div>` : '';
+
+function sigCellHtml(c, cols, gap) {
+  const dateW = cols > 1 ? 68 : 34;
+  return `<div class="sigcell">
+      ${sigBoxed() ? `<div class="sigbox" style="height:${gap}px"></div>` : '<div class="sigline"></div>'}
+      <div class="signame">${esc(c.name || BLANK)}</div>
+      ${c.cap ? '<div class="sigcap">' + esc(c.cap) + '</div>' : ''}
+      ${sigDated() ? `<div class="sigdate">Date:&nbsp;<span class="sigdateline" style="width:${dateW}%"></span></div>` : ''}
+    </div>`;
+}
+
+function docHtml() {
+  const gap = sigSpace().px;
+  const lh = onLetterhead();
+  const body = buildBlocks().map(b => {
+    const style = (extra = '') =>
+      (b.indent ? 'margin-left:' + b.indent + 'mm;' : '') + (b.top ? 'margin-top:' + b.top + 'mm;' : '') + extra;
+
+    switch (b.t) {
+      case 'title':
+        return '<h2>' + esc(b.text) + '</h2>';
+      case 'twocol':
+        return `<div class="twocol"><div class="lab">${b.labels.map(esc).join('\n')}</div>
+                  <div class="body">${b.lines.map(esc).join('\n')}</div></div>`;
+      case 'bracket':
+        return '<div style="margin-top:6mm">' + b.lines.map(l =>
+          `<div class="bracket"><span class="t">${esc(l)}</span><span>)</span></div>`).join('') + '</div>';
+      case 'clausehead':
+        return '<p class="clausehead">' + esc(b.text) + '</p>';
+      case 'sum':
+        return '<div style="' + style() + 'margin-bottom:9px">' +
+               b.lines.map(l => '<div>' + esc(l) + '</div>').join('') + '</div>';
+      case 'item':
+        return `<p style="${style('margin-left:' + (b.indent + b.hang) + 'mm;text-indent:-' + b.hang + 'mm')}">` +
+               `<span style="display:inline-block;min-width:${b.hang}mm">${esc(b.marker)}</span>` +
+               esc(b.text) + '</p>';
+      case 'sigrow': {
+        const cols = perRow();
+        const top = sigBoxed() ? '' : `margin-top:${gap}px;`;
+        return `<div class="sigrow" style="${top}grid-template-columns:repeat(${cols},1fr)">` +
+               b.cells.map(c => sigCellHtml(c, cols, gap)).join('') + '</div>';
+      }
+      case 'witness':
+        return `<div style="page-break-inside:avoid"><p class="plain" style="margin-bottom:${Math.round(gap * 0.5)}px">Witness:</p>
+          <div class="sigrow" style="grid-template-columns:repeat(${b.cols},1fr);margin-top:0">
+            ${Array.from({length: b.cols}, () => '<div><div class="sigline"></div></div>').join('')}
+          </div></div>`;
+      default:
+        return `<p class="${b.cls === 'plain' ? 'plain' : ''}" style="${style()}">${esc(b.text)}</p>`;
+    }
+  }).join('');
+  return (lh ? letterheadHtml() : '') + body + (lh ? letterheadFooterHtml() : '');
+}
+
+function renderPreview() {
+  const el = document.getElementById('preview');
+  el.style.fontSize = ptSize() + 'pt';
+  el.innerHTML = docHtml();
+}
+
+function renderLetterheadBar() {
+  const name = document.getElementById('lhName');
+  const box  = document.getElementById('useLetterhead');
+  const clr  = document.getElementById('lhClear');
+  if (!name) return;
+  name.textContent = LH ? LH.name : 'No letterhead loaded';
+  name.classList.toggle('set', !!LH);
+  box.disabled = !LH;
+  if (!LH) box.checked = false;
+  clr.classList.toggle('hide', !LH);
+}
+
+function echo(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+
+function render() {
+  toggleSections();
+  renderLetterheadBar();
+  echo('deedDateEcho',     val('deedDate')      ? 'Reads as: the ' + longDate(val('deedDate')) : '');
+  echo('contractDateEcho', val('contractDate')  ? 'Reads as: the ' + longDate(val('contractDate')) : '');
+  echo('priorDeedEcho',    val('priorDeedDate') ? 'Reads as: the ' + longDate(val('priorDeedDate')) : '');
+  echo('priceEcho',        val('price')   ? amt(val('price'))   + ' — ' + inWords(val('price'))   : '');
+  echo('depositEcho',      val('deposit') ? amt(val('deposit')) + ' — ' + inWords(val('deposit')) : '');
+  echo('feeEcho',          val('fee')     ? amt(val('fee'))     + ' — ' + inWords(val('fee'))     : '');
+  echo('depPartsEcho',     partsEcho('deposit', num(val('deposit'))));
+  echo('feePartsEcho',     partsEcho('fee', num(val('fee'))));
+  renderPreview();
+}
+function renderAll() { renderForm(); render(); }
+
+/* ------------------------------------------------------------------ *
+ *  DOCX
+ * ------------------------------------------------------------------ */
+/* A4 (11906 twips) less 20 mm margins each side. */
+const TEXT_WIDTH = 11906 - 1134 * 2;
+const tw = mm => Math.round(mm * 56.6929);          // millimetres to twips
+
+async function downloadDocx() {
+  if (typeof docx === 'undefined') { fallbackDoc(); return; }
+  // Ask where to save before building the document, so the dialog opens
+  // while the click is still counted as a user gesture.
+  const target = await pickTarget(fileName() + '.docx');
+  if (target === CANCELLED) return;
+
+  const doc = buildDocxDoc();
+  if (!doc) { fallbackDoc(); return; }
+  let blob;
+  try {
+    blob = await docx.Packer.toBlob(doc);
+  } catch (e) { console.error(e); fallbackDoc(); return; }
+
+  if (onLetterhead()) {
+    try {
+      blob = await pourIntoLetterhead(blob);
+    } catch (e) {
+      console.error(e);
+      setStatus('Could not use the letterhead file for the Word download — ' +
+                (e.message || e.name) + '. Saved without it.', true);
+    }
+  }
+  save(blob, fileName() + '.docx', target);
+}
+
+/** Put the generated body inside the user's letterhead document, so the
+    firm's own header, footer, fonts and page setup carry through to Word. */
+async function pourIntoLetterhead(generated) {
+  if (typeof JSZip === 'undefined') throw new Error('the zip library did not load');
+  const tpl  = await JSZip.loadAsync(base64ToBytes(LH.docx));
+  const ours = await JSZip.loadAsync(generated);
+
+  const tplXml = await tpl.file('word/document.xml').async('string');
+  const ourXml = await ours.file('word/document.xml').async('string');
+
+  const bodyOf = xml => {
+    const start = xml.indexOf('<w:body>');
+    if (start < 0) throw new Error('unexpected document structure');
+    const from = start + '<w:body>'.length;
+    const sect = xml.lastIndexOf('<w:sectPr');
+    const to = sect > from ? sect : xml.lastIndexOf('</w:body>');
+    return {from, to, inner: xml.slice(from, to)};
+  };
+
+  const ourBody = bodyOf(ourXml);
+  const tplBody = bodyOf(tplXml);
+  // keep the letterhead's own sectPr: its margins, headers and footers
+  tpl.file('word/document.xml', tplXml.slice(0, tplBody.from) + ourBody.inner + tplXml.slice(tplBody.to));
+
+  return tpl.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    compression: 'DEFLATE'
+  });
+}
+
+function buildDocxDoc() {
+  if (typeof docx === 'undefined') return null;
+  const {Document, Paragraph, TextRun, Tab, AlignmentType, BorderStyle, Footer, PageNumber,
+         TabStopType, Table, TableRow, TableCell, WidthType, HeightRule} = docx;
+  const children = [];
+
+  const NONE = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+  const noBorders = {top:NONE, bottom:NONE, left:NONE, right:NONE, insideHorizontal:NONE, insideVertical:NONE};
+  const SOLID = {style:BorderStyle.SINGLE, size:6, color:'000000'};
+  const HALF = Math.round(ptSize() * 2);             // docx sizes are half-points
+
+  const run = (text, o = {}) => new TextRun({text, size:HALF, ...o});
+
+  /** Name, capacity and date line — printed under the box or the rule. */
+  const sigLabels = (c, dateSpaces) => {
+    const out = [new Paragraph({spacing:{after:0}, children:[run(c.name || BLANK, {bold:true})]})];
+    if (c.cap) out.push(new Paragraph({spacing:{after: sigDated() ? 0 : 120}, children:[run(c.cap)]}));
+    if (sigDated()) {
+      // Underlined non-breaking spaces, so the rule stays put when the
+      // document is edited in Word.
+      out.push(new Paragraph({spacing:{before:120, after:120},
+        children:[run('Date: '), run(' '.repeat(dateSpaces), {underline:{}})]}));
+    }
+    return out;
+  };
+
+  /* One table per row of boxes: an empty bordered cell of the chosen height
+     over an unbordered cell carrying the name. A narrow spacer column keeps
+     two boxes apart without their borders touching. */
+  const cellGrid = (cells, cols, make) => {
+    const gutter = cols > 1 ? 400 : 0;
+    const cw = Math.floor((TEXT_WIDTH - gutter * (cols - 1)) / cols);
+    const spacer = () => new TableCell({width:{size:gutter, type:WidthType.DXA},
+                                        borders:noBorders, children:[new Paragraph('')]});
+    const row = [];
+    for (let i = 0; i < cols; i++) {
+      if (i) row.push(spacer());
+      row.push(make(cells[i], cw));                  // a missing cell pads a short row
+    }
+    return row;
+  };
+
+  const sigBoxTable = cells => {
+    const cols = perRow();
+    return [
+      // Word merges two tables that touch, so rows are separated by a
+      // paragraph — kept tiny, or it opens a hole above every box.
+      new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}),
+      new Table({
+        width:{size: TEXT_WIDTH, type:WidthType.DXA},
+        borders: noBorders,
+        rows:[
+          new TableRow({
+            height:{value: sigSpace().twips, rule: HeightRule.ATLEAST},
+            children: cellGrid(cells, cols, (c, cw) => new TableCell({
+              width:{size:cw, type:WidthType.DXA},
+              borders: c ? {top:SOLID, bottom:SOLID, left:SOLID, right:SOLID} : noBorders,
+              children:[new Paragraph('')]
+            }))
+          }),
+          new TableRow({
+            children: cellGrid(cells, cols, (c, cw) => new TableCell({
+              width:{size:cw, type:WidthType.DXA},
+              borders: noBorders,
+              margins:{bottom:120},
+              children: c ? sigLabels(c, cols > 1 ? 16 : 34) : [new Paragraph('')]
+            }))
+          })
+        ]
+      })
+    ];
+  };
+
+  /** Ruled lines for the witness, in the same columns as the signatures. */
+  const witnessTable = cols => [
+    new Paragraph({spacing:{before:200, after:0}, children:[run('Witness:')]}),
+    new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}),
+    new Table({
+      width:{size: TEXT_WIDTH, type:WidthType.DXA},
+      borders: noBorders,
+      rows:[new TableRow({
+        height:{value: Math.round(sigSpace().twips * 0.6), rule: HeightRule.ATLEAST},
+        children: cellGrid(Array.from({length: cols}, () => true), cols, (c, cw) => new TableCell({
+          width:{size:cw, type:WidthType.DXA},
+          borders: {top:NONE, left:NONE, right:NONE, bottom: c ? SOLID : NONE},
+          children:[new Paragraph('')]
+        }))
+      })]
+    }),
+    new Paragraph({spacing:{before:0, after:200}, children:[new TextRun({text:'', size:8})]})
+  ];
+
+  buildBlocks().forEach(b => {
+    switch (b.t) {
+      case 'title':
+        children.push(new Paragraph({
+          alignment: AlignmentType.CENTER, spacing:{after:300},
+          children:[run(b.text.toUpperCase(), {bold:true})]
+        }));
+        return;
+
+      case 'twocol':
+        children.push(new Table({
+          width:{size: TEXT_WIDTH, type:WidthType.DXA},
+          borders: noBorders,
+          rows:[new TableRow({children:[
+            new TableCell({width:{size: tw(33), type:WidthType.DXA}, borders:noBorders,
+              children: (b.labels.length ? b.labels : ['']).map(l =>
+                new Paragraph({spacing:{after:0}, children:[run(l)]}))}),
+            new TableCell({width:{size: TEXT_WIDTH - tw(33), type:WidthType.DXA}, borders:noBorders,
+              margins:{bottom:120},
+              children: b.lines.map(l => new Paragraph({spacing:{after:0}, children:[run(l)]}))})
+          ]})]
+        }));
+        children.push(new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}));
+        return;
+
+      case 'bracket':
+        children.push(new Paragraph({spacing:{before:280, after:0}, children:[new TextRun({text:'', size:8})]}));
+        b.lines.forEach(l => children.push(new Paragraph({
+          spacing:{after:0},
+          tabStops:[{type: TabStopType.LEFT, position: tw(80)}],
+          children:[run(l), new TextRun({children:[new Tab()], size:HALF}), run(')')]
+        })));
+        return;
+
+      case 'clausehead':
+        children.push(new Paragraph({
+          spacing:{before:300, after:140}, keepNext: true,
+          children:[run(b.text, {bold:true})]
+        }));
+        return;
+
+      case 'sum':
+        b.lines.forEach(l => children.push(new Paragraph({
+          spacing:{after:0}, indent:{left: tw(b.indent)}, children:[run(l)]
+        })));
+        children.push(new Paragraph({spacing:{after:120}, children:[new TextRun({text:'', size:8})]}));
+        return;
+
+      case 'item':
+        children.push(new Paragraph({
+          spacing:{after:140, line:264},
+          alignment: AlignmentType.JUSTIFIED,
+          indent:{left: tw(b.indent + b.hang), hanging: tw(b.hang)},
+          children:[run(b.marker), new TextRun({children:[new Tab()], size:HALF}), run(b.text)]
+        }));
+        return;
+
+      case 'sigrow':
+        children.push(...sigBoxTableOrLine(b.cells));
+        return;
+
+      case 'witness':
+        children.push(...witnessTable(b.cols));
+        return;
+
+      default:
+        children.push(new Paragraph({
+          spacing:{after:140, line:264, before: tw(b.top || 0)},
+          alignment: b.cls === 'plain' ? AlignmentType.LEFT : AlignmentType.JUSTIFIED,
+          indent:{left: tw(b.indent || 0)},
+          children:[run(b.text)]
+        }));
+    }
+  });
+
+  /** A row of signatures: boxes, or a ruled line with the name beneath it. */
+  function sigBoxTableOrLine(cells) {
+    if (sigBoxed()) return sigBoxTable(cells);
+    const out = [new Paragraph({spacing:{before: sigSpace().twips}, children:[]})];
+    out.push(new Paragraph({
+      spacing:{after:40},
+      // The rule is the paragraph's bottom border, so indenting the right
+      // edge is what shortens it — 72% of the text width, as in the preview.
+      indent:{right: Math.round(TEXT_WIDTH * 0.28)},
+      border:{bottom:{style:BorderStyle.SINGLE, size:6, space:1, color:'000000'}},
+      children:[new TextRun({text:''})]
+    }));
+    sigLabels(cells[0], 34).forEach(pr => out.push(pr));
+    return out;
+  }
+
+  const footers = numbered() ? {default: new Footer({children:[new Paragraph({
+    alignment: AlignmentType.CENTER,
+    children:[new TextRun({children:['Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], size:18})]
+  })]})} : undefined;
+
+  // No header is built here: on letterhead the whole document is poured into
+  // the user's own file, which brings its own page setup.
+  return new Document({
+    styles:{default:{document:{run:{font:'Arial', size:HALF}}}},
+    sections:[{properties:{
+      page:{size:{width:11906, height:16838},                        // A4 portrait
+            margin:{top:1134, bottom:1134, left:1134, right:1134}}    // 20 mm
+    }, footers, children}]
+  });
+}
+
+/* Word-readable HTML fallback when the docx library is unavailable (offline). */
+function fallbackDoc() {
+  const html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">' +
+    '<style>' + DOC_CSS.replace('__SIZE__', ptSize()) + '</style></head><body><div class="doc">' +
+    docHtml() + '</div></body></html>';
+  save(new Blob(['﻿' + html], {type:'application/msword'}), fileName() + '.doc');
+  setStatus('docx library unavailable — exported .doc to your Downloads folder instead');
+}
+
+const DOC_CSS = `@page{size:A4;margin:20mm}
+.doc{font-family:Arial,Helvetica,sans-serif;font-size:__SIZE__pt;line-height:1.35;color:#000;background:#fff}
+.doc h2{text-align:center;font-size:1.05em;font-weight:700;text-transform:uppercase;margin:0 0 18px}
+.doc p{margin:0 0 9px;text-align:justify}
+.doc p.plain{text-align:left}
+.doc .twocol{display:flex;margin:0 0 9px}
+.doc .twocol .lab{width:33mm;flex:none;white-space:pre-line}
+.doc .twocol .body{flex:1;white-space:pre-line}
+.doc .bracket{display:flex}
+.doc .bracket .t{width:80mm;flex:none}
+.doc .clausehead{font-weight:700;margin:16px 0 8px;text-align:left}
+.doc .sigrow{display:grid;gap:26px;margin:6px 0 14px;page-break-inside:avoid}
+.doc .sigline{border-bottom:1px solid #000;width:72%;height:1px;margin-bottom:4px}
+.doc .sigbox{border:1px solid #000;margin-bottom:4px}
+.doc .signame{font-weight:700}
+.doc .sigdate{margin-top:9px}
+.doc .sigdateline{display:inline-block;width:34%;border-bottom:1px solid #000}`;
+
+/* ------------------------------------------------------------------ *
+ *  PDF — laid out directly with jsPDF so the text stays selectable and
+ *  the typography matches the DOCX.
+ * ------------------------------------------------------------------ */
+async function downloadPdf() {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { window.print(); return; }
+  const target = await pickTarget(fileName() + '.pdf');   // dialog first, as for the DOCX
+  if (target === CANCELLED) return;
+
+  const d = buildPdfDoc();
+  if (!d) { window.print(); return; }
+  save(d.output('blob'), fileName() + '.pdf', target);
+}
+
+function buildPdfDoc() {
+  const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFCtor) return null;
+
+  // jsPDF's built-in fonts are WinAnsi only, so typographic characters have to
+  // be folded down to ASCII or they render as empty boxes.
+  const ascii = s => String(s)
+    .replace(/[–—]/g, '-')
+    .replace(/[‘’‚]/g, "'")
+    .replace(/[“”„]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/\u00A0/g, ' ');
+
+  const lh = onLetterhead();
+  const SIZE = ptSize();
+  const d = new jsPDFCtor({unit:'mm', format:'a4', orientation:'portrait'});
+  const M = 20, W = 210 - M * 2, LINE = SIZE * 0.47;
+  const BOTTOM = 297 - (lh ? 25 : (numbered() ? 24 : M));
+  let y = M;
+  d.setFont('helvetica', 'normal').setFontSize(SIZE);   // Helvetica = Arial metrics
+
+  if (lh) {
+    // logo left, header text right — first page only, as letterheads are laid out
+    let bottom = 12;
+    if (LH.logo) {
+      const {w, h} = LH.logoMm;
+      // 'FAST' deflates the image — without it jsPDF stores it raw (~450 KB)
+      d.addImage(LH.logo, LH.logo.includes('image/jpeg') ? 'JPEG' : 'PNG', M, 12, w, h, 'lhlogo', 'FAST');
+      bottom = 12 + h;
+    }
+    if (LH.lines.length) {
+      d.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(0, 32, 96);
+      LH.lines.forEach((t, i) => d.text(ascii(t), 210 - M, 15 + i * 4.8, {align:'right'}));
+      bottom = Math.max(bottom, 11 + LH.lines.length * 4.8);
+      d.setFont('helvetica', 'normal').setFontSize(SIZE).setTextColor(0, 0, 0);
+    }
+    y = bottom + 14;
+  }
+  const need = h => { if (y + h > BOTTOM) { d.addPage(); y = M; } };
+
+  /** Wrapped, optionally justified text in a column. */
+  const writeLines = (text, x, width, justify) => {
+    const lines = d.splitTextToSize(ascii(text), width);
+    lines.forEach((ln, i) => {
+      need(LINE);
+      const words = ln.split(' ').filter(Boolean);
+      if (justify && i < lines.length - 1 && words.length > 1) {
+        const gap = (width - words.reduce((s, w) => s + d.getTextWidth(w), 0)) / (words.length - 1);
+        let cx = x;
+        words.forEach(w => { d.text(w, cx, y); cx += d.getTextWidth(w) + gap; });
+      } else {
+        d.text(ln, x, y);
+      }
+      y += LINE;
+    });
+  };
+
+  buildBlocks().forEach(b => {
+    switch (b.t) {
+      case 'title': {
+        d.setFont('helvetica', 'bold').setFontSize(SIZE + 0.5);
+        need(LINE * 2);
+        d.text(ascii(b.text).toUpperCase(), 105, y, {align:'center'});
+        y += LINE + 4;
+        d.setFont('helvetica', 'normal').setFontSize(SIZE);
+        return;
+      }
+      case 'twocol': {
+        const x2 = M + 33;
+        const top = y;
+        b.lines.forEach(l => writeLines(l, x2, W - 33, false));
+        const after = y;
+        y = top;
+        b.labels.forEach(l => { d.text(ascii(l), M, y); y += LINE; });
+        y = Math.max(after, y) + 2.5;
+        return;
+      }
+      case 'bracket':
+        y += 5;
+        // An execution block is no use split across a page, so the whole of
+        // it — the brackets, a row of signatures and the labels under it —
+        // has to fit before any of it is drawn.
+        need(LINE * 7 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0));
+        b.lines.forEach(l => {
+          if (l) d.text(ascii(l), M, y);
+          d.text(')', M + 80, y);
+          y += LINE;
+        });
+        y += 1.5;
+        return;
+      case 'clausehead':
+        need(LINE * 3.5);                      // never strand a heading at the foot
+        y += 4;
+        d.setFont('helvetica', 'bold');
+        d.text(ascii(b.text), M, y);
+        d.setFont('helvetica', 'normal');
+        y += LINE + 2;
+        return;
+      case 'sum':
+        b.lines.forEach(l => { need(LINE); d.text(ascii(l), M + b.indent, y); y += LINE; });
+        y += 2.5;
+        return;
+      case 'item': {
+        const width = W - b.indent - b.hang;
+        // Never leave the number at the foot of a page with its text overleaf.
+        const lines = d.splitTextToSize(ascii(b.text), width).length;
+        need(LINE * Math.min(lines, 2));
+        d.text(ascii(b.marker), M + b.indent, y);
+        writeLines(b.text, M + b.indent + b.hang, width, true);
+        y += 2;
+        return;
+      }
+      case 'sigrow': {
+        const gap = sigSpace().mm;
+        const cols = perRow();
+        const colW = W / cols;
+        const boxW = colW - (cols > 1 ? 8 : 0);
+        const capLines = Math.max(...b.cells.map(c =>
+          c.cap ? d.splitTextToSize(ascii(c.cap), boxW).length : 0), 0);
+        need(gap + 8 + capLines * LINE + (sigDated() ? LINE + 3 : 0));
+        d.setLineWidth(0.3);
+        if (sigBoxed()) {
+          y += 1.5;
+          b.cells.forEach((c, i) => d.rect(M + i * colW, y, boxW, gap));
+          y += gap + 4.4;
+        } else {
+          y += gap;
+          d.line(M, y, M + W * 0.72, y);
+          y += 4.4;
+        }
+        d.setFont('helvetica', 'bold');
+        b.cells.forEach((c, i) => d.text(ascii(c.name || BLANK), M + i * colW, y));
+        d.setFont('helvetica', 'normal');
+        y += LINE;
+        if (capLines) {
+          const top = y;
+          let low = y;
+          b.cells.forEach((c, i) => {
+            if (!c.cap) return;
+            y = top;
+            d.splitTextToSize(ascii(c.cap), boxW).forEach(ln => { d.text(ln, M + i * colW, y); y += LINE; });
+            low = Math.max(low, y);
+          });
+          y = low;
+        }
+        if (sigDated()) {
+          y += 3;
+          const label = 'Date:';
+          b.cells.forEach((c, i) => {
+            const x = M + i * colW;
+            d.text(label, x, y);
+            d.line(x + d.getTextWidth(label) + 2, y + 0.6, x + boxW * (cols > 1 ? 0.92 : 0.68), y + 0.6);
+          });
+          y += LINE;
+        }
+        y += 4;
+        return;
+      }
+      case 'witness': {
+        const gap = sigSpace().mm * 0.6;
+        const colW = W / b.cols;
+        const boxW = colW - (b.cols > 1 ? 8 : 0);
+        need(gap + LINE + 6);
+        d.text('Witness:', M, y);
+        y += gap;
+        d.setLineWidth(0.3);
+        for (let i = 0; i < b.cols; i++) d.line(M + i * colW, y, M + i * colW + boxW * 0.85, y);
+        y += 8;
+        return;
+      }
+      default: {
+        if (b.top) y += b.top;
+        const x = M + (b.indent || 0);
+        writeLines(b.text, x, W - (b.indent || 0), b.cls !== 'plain');
+        y += 2;
+      }
+    }
+  });
+
+  const pages = d.getNumberOfPages();
+  if (lh && LH.footer) {
+    for (let i = 1; i <= pages; i++) {
+      d.setPage(i);
+      d.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(0, 0, 0);
+      d.setDrawColor(207, 214, 222);
+      d.setLineWidth(0.2);
+      d.line(M, 281, 210 - M, 281);
+      d.text(ascii(LH.footer), M, 285.5, {maxWidth: W - 28});
+      d.text('Page ' + i + ' of ' + pages, 210 - M, 285.5, {align:'right'});
+    }
+  } else if (numbered()) {
+    for (let i = 1; i <= pages; i++) {
+      d.setPage(i);
+      d.setFont('helvetica', 'normal').setFontSize(9).setTextColor(0, 0, 0);
+      d.text('Page ' + i + ' of ' + pages, 105, 285, {align:'center'});
+    }
+  }
+  d.setFontSize(SIZE);
+  return d;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Files
+ * ------------------------------------------------------------------ */
+/* Downloads are named plainly — no client details in the filename. */
+const fileName = () => 'Deed of assignment';
+
+/* Chrome and Edge can show the system Save dialog, so the user chooses the
+   folder and the name; other browsers can only drop the file in the
+   downloads folder. The dialog has to be opened while the click that asked
+   for it is still fresh, so callers pick the destination first and build
+   the document afterwards. */
+const CANCELLED = Symbol('cancelled');
+const FILE_TYPES = {
+  docx: {description:'Word document', accept:{'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx']}},
+  doc:  {description:'Word document', accept:{'application/msword':['.doc']}},
+  pdf:  {description:'PDF document',  accept:{'application/pdf':['.pdf']}},
+  json: {description:'Deed of assignment draft', accept:{'application/json':['.json']}}
+};
+async function pickTarget(name) {
+  if (!window.showSaveFilePicker) return null;         // no dialog in this browser
+  const type = FILE_TYPES[name.split('.').pop().toLowerCase()];
+  try {
+    return await showSaveFilePicker({suggestedName: name, types: type ? [type] : []});
+  } catch (e) {
+    if (e.name === 'AbortError') return CANCELLED;     // user closed the dialog
+    console.warn('File picker unavailable, falling back to download', e);
+    return null;
+  }
+}
+
+/** Write to the chosen file, or fall back to the downloads folder.
+    Returns the name written to, or null when it went to downloads. */
+async function save(data, name, target) {
+  if (target && target !== CANCELLED) {
+    try {
+      const w = await target.createWritable();
+      await w.write(data);
+      await w.close();
+      return target.name;
+    } catch (e) { console.error(e); }                  // fall through to a plain download
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return null;
+}
+
+let statusTimer;
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { el.textContent = ''; el.classList.remove('error'); },
+                           isError ? 12000 : 4000);   // errors stay long enough to read
+}
+
+/* ------------------------------------------------------------------ *
+ *  Drafts
+ * ------------------------------------------------------------------ */
+const SIMPLE = ['deedDate','contractName','contractNameOther','contractDate','priorDeedDate','purchaserIs',
+                'payMode','price','deposit','fee','trustAccount','depMode','feeMode',
+                'docTitle','fontSize','sigStyle','sigSpace'];
+const BOXES  = ['priorDeed','depNonRefundable','vendorCredit','feeNonRefundable',
+                'useLetterhead','sigDate','witnessLines','pageNumbers'];
+
+const snapshot = () => {
+  const fields = {};
+  SIMPLE.forEach(id => fields[id] = val(id));
+  BOXES.forEach(id => fields[id] = chk(id));
+  fields.useLetterhead = onLetterhead();
+  return {tool: 'deed-of-assignment', version: 1, fields, lists: S};
+};
+
+const FIELD_DEFAULTS = {
+  contractName:'Contract for the Sale of Residential Property', purchaserIs:'assignor',
+  payMode:'fee', depMode:'single', feeMode:'single', fontSize:'11',
+  sigStyle:'box2', sigSpace:'generous', docTitle:'DEED OF ASSIGNMENT',
+  trustAccount:'Acquire Conveyancing Trust Account'
+};
+const BOX_DEFAULTS = {priorDeed:false, depNonRefundable:true, vendorCredit:true, feeNonRefundable:true,
+                      useLetterhead:false, sigDate:true, witnessLines:true, pageNumbers:true};
+
+function setFields(f) {
+  SIMPLE.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = f[id] !== undefined && f[id] !== '' ? f[id] : (FIELD_DEFAULTS[id] || '');
+  });
+  BOXES.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = f[id] !== undefined ? !!f[id] : BOX_DEFAULTS[id];
+  });
+}
+
+const EMPTY_TERMS = () => ({when:'signing', date:'', payee:'trust', release:true, parts:[]});
+
+function applyDraft(d) {
+  setFields(d.fields || {});
+  const l = d.lists || {};
+  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(k => S[k] = l[k] || []);
+  S.deposit = Object.assign(EMPTY_TERMS(), l.deposit || {when:'signing'});
+  S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false}, l.fee || {});
+  S.deposit.parts = S.deposit.parts || [];
+  S.fee.parts     = S.fee.parts || [];
+  renderAll();
+}
+
+/* Save to a folder the user picks. Uses the File System Access API where
+   available (Chrome/Edge), otherwise falls back to the downloads folder. */
+async function saveFile() {
+  const name = fileName() + '.json';
+  const target = await pickTarget(name);
+  if (target === CANCELLED) return;
+  const json = JSON.stringify(snapshot(), null, 2);
+  const where = await save(new Blob([json], {type:'application/json'}), name, target);
+  setStatus(where ? 'Saved to ' + where : 'Saved to your Downloads folder');
+}
+
+async function openFile() {
+  // Only a failure of the picker itself may fall back to the <input> dialog —
+  // a failure to read or parse the chosen file must be reported, or the user
+  // just gets a second file dialog with no explanation.
+  if (!window.showOpenFilePicker) { document.getElementById('fileInput').click(); return; }
+
+  let handle;
+  try {
+    [handle] = await showOpenFilePicker({
+      types: [{description:'Deed of assignment draft', accept:{'application/json':['.json']}}]
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') return;                 // user cancelled
+    console.warn('File picker unavailable, falling back to file input', e);
+    document.getElementById('fileInput').click();
+    return;
+  }
+
+  try {
+    loadDraftText(await (await handle.getFile()).text(), handle.name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not read ' + handle.name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+function handleFilePick(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  const r = new FileReader();
+  r.onload  = () => loadDraftText(r.result, file.name);
+  r.onerror = () => setStatus('Could not read ' + file.name +
+                              ' — if it is stored in OneDrive, open it once to download it locally', true);
+  r.readAsText(file);
+}
+
+function loadDraftText(text, name) {
+  let d;
+  try {
+    d = JSON.parse(text);
+  } catch {
+    setStatus(name + ' is not a valid draft file (not JSON)', true);
+    return;
+  }
+  if (!d || typeof d !== 'object' || d.tool !== 'deed-of-assignment') {
+    setStatus(name + ' does not look like a deed of assignment draft — nothing was changed', true);
+    return;
+  }
+  try {
+    applyDraft(d);
+    setStatus('Loaded ' + name);
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not load ' + name + ' — ' + (e.message || e.name), true);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Sample data — fictional parties, one for each of the shapes this
+ *  deed commonly takes.
+ * ------------------------------------------------------------------ */
+const party    = (kind, o = {}) => Object.assign(newParty(kind), o);
+const officer  = (name, role, address, email) => ({id:uid(), name, role, address, email: email || ''});
+const trustee  = (name, address, email) => ({id:uid(), name, address, email: email || ''});
+const property = o => Object.assign({id:uid(), address:'', legal:'', volume:'', folio:'', extent:'whole', portion:''}, o);
+const part     = o => Object.assign(newPart(), o);
+
+const SAMPLES = {
+  nofee: {
+    label: 'No further consideration',
+    fields: {deedDate:'2026-07-28', contractName:'Contract for Sale and Purchase', contractDate:'2026-04-26',
+             purchaserIs:'assignor', payMode:'nofee', price:'2500000', deposit:'200000',
+             depMode:'single', vendorCredit:true, depNonRefundable:true},
+    deposit: {when:'signing', date:'', payee:'assignor', release:false, parts:[]},
+    fee: EMPTY_TERMS(),
+    assignors: [party('individual', {name:'Mahira Jitendra Patel', nominee:true,
+                                     address:'18C Cresdee Road, Campbelltown SA 5074'})],
+    assignees: [party('company', {name:'Kudla Projects Pty Ltd', acn:'700 555 120',
+                                  address:'18C Cresdee Road, Campbelltown SA 5074',
+                                  officers:[officer('Harshaben Nayan Darji', 'Director', '18C Cresdee Road, Campbelltown SA 5074', 'harsha@example.com'),
+                                            officer('Jaikin Suresh Lund', 'Director', '18C Cresdee Road, Campbelltown SA 5074', 'jaikin@example.com')]})],
+    vendors: [party('individual', {name:'Phetsamone Bounketh', address:'102 Cambridge Street, Canley Heights NSW 2166'}),
+              party('individual', {name:'Saengdara Bounketh', address:'102 Cambridge Street, Canley Heights NSW 2166'})],
+    purchasers: [],
+    properties: [property({address:'357 Stebonheath Road, Kudla SA 5115', volume:'6329', folio:'331',
+                           legal:'Allotment 50 in Deposited Plan 139470 in the area named Kudla, Hundred of Munno Para'})],
+    extras: []
+  },
+
+  settlement: {
+    label: 'Fee on settlement',
+    fields: {deedDate:'2026-06-10', contractName:'Contract for the Sale of Residential Property',
+             contractDate:'2026-05-19', purchaserIs:'named', payMode:'fee',
+             price:'891000', deposit:'25000', fee:'40000', depMode:'single', feeMode:'single'},
+    deposit: {when:'signing', date:'', payee:'trust', release:true, parts:[]},
+    fee: {when:'settlement', date:'', payee:'trust', release:false, parts:[]},
+    assignors: [party('individual', {name:'Chirag Lalbhai Patel', address:'2 Tappa Court, Oakden SA 5086'})],
+    assignees: [party('company', {name:'Topaz Housing Pty Ltd', acn:'678 969 134',
+                                  address:'64 Wheaton Street, South Plympton SA 5038', email:'office@example.com',
+                                  officers:[officer('Samir Roshan Shukla', 'Director', '64 Wheaton Street, South Plympton SA 5038'),
+                                            officer('Jugal Girish Patel', 'Director', '64 Wheaton Street, South Plympton SA 5038')]})],
+    vendors: [party('individual', {name:'Joylene Ann Burford', address:'2 Straun Road, Ingle Farm SA 5098'})],
+    purchasers: [party('individual', {name:'Chirag Lalbhai Patel', address:'2 Tappa Court, Oakden SA 5086'})],
+    properties: [property({address:'2 Straun Road, Ingle Farm SA 5098', volume:'5340', folio:'738',
+                           legal:'Allotment 1415 in Deposited Plan 9283 in the area named Ingle Farm, Hundred of Yatala'})],
+    extras: []
+  },
+
+  instalments: {
+    label: 'Fee in instalments',
+    fields: {deedDate:'2026-05-11', contractName:'Contract for the Sale of Rural Land Property',
+             contractDate:'2026-01-23', purchaserIs:'named', priorDeed:true, priorDeedDate:'2026-05-07',
+             payMode:'fee', price:'3800000', deposit:'150000', fee:'700000',
+             depMode:'single', feeMode:'parts'},
+    deposit: {when:'signing', date:'', payee:'trust', release:true, parts:[]},
+    fee: {when:'settlement', date:'', payee:'trust', release:true, parts:[
+      part({amount:'250000', when:'date', date:'2026-07-20', payee:'trust', release:true}),
+      part({amount:'450000', when:'date', date:'2027-10-20', payee:'trust', release:true})
+    ]},
+    assignors: [party('company', {name:'Hillier Projects Pty Ltd', acn:'695 782 524',
+                                  address:'18C Cresdee Road, Campbelltown SA 5074',
+                                  officers:[officer('Harshaben Nayan Darji', 'Director', '18C Cresdee Road, Campbelltown SA 5074'),
+                                            officer('Jaikin Suresh Lund', 'Director', '18C Cresdee Road, Campbelltown SA 5074')]})],
+    assignees: [party('company', {name:'SKX Group of Companies Pty Ltd', acn:'657 629 751', nominee:true,
+                                  address:'57 Second Street, Brompton SA 5007', email:'skx@example.com',
+                                  officers:[officer('Surender Surender', 'Sole Director', '57 Second Street, Brompton SA 5007')]})],
+    vendors: [party('individual', {name:'Robert James Slape', address:'RSD 3514 Hillier Road, Gawler River SA 5118'}),
+              party('individual', {name:'Kathleen Therese Slape', address:'RSD 3514 Hillier Road, Gawler River SA 5118'})],
+    purchasers: [party('individual', {name:'Harshaben Nayan Darji', nominee:true,
+                                      address:'7 High Avenue, Clearview SA 5085'})],
+    properties: [property({address:'186 Hillier Road, Hillier SA 5116', volume:'5256', folio:'81',
+                           legal:'Allotment 1 in Filed Plan 10463 in the area named Hillier, Hundred of Munno Para'})],
+    extras: []
+  }
+};
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  if (!s) return;
+  const keep = {fontSize: val('fontSize'), sigStyle: val('sigStyle'), sigSpace: val('sigSpace')};
+  setFields({...FIELD_DEFAULTS, ...BOX_DEFAULTS, ...s.fields, ...keep});
+  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(
+    k => S[k] = JSON.parse(JSON.stringify(s[k] || [])));
+  S.deposit = JSON.parse(JSON.stringify(s.deposit));
+  S.fee     = JSON.parse(JSON.stringify(s.fee));
+  renderAll();
+  setStatus('Loaded sample: ' + s.label);
+}
+
+function resetAll() {
+  const keep = {fontSize: val('fontSize'), sigStyle: val('sigStyle'), sigSpace: val('sigSpace')};
+  setFields({...FIELD_DEFAULTS, ...BOX_DEFAULTS, ...keep});
+  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(k => S[k] = []);
+  S.deposit = EMPTY_TERMS();
+  S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+  seed();
+}
+
+function seed() {
+  S.assignors.push(newParty('individual'));
+  S.assignees.push(newParty('company'));
+  S.vendors.push(newParty('individual'));
+  S.purchasers.push(newParty('individual'));
+  addProperty();
+}
+
+S.deposit = EMPTY_TERMS();
+S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+loadStoredLetterhead();
+seed();
+renderAll();
+</script>
+</body>
+</html>
