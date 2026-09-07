@@ -95,11 +95,15 @@ after the colon in `AS FOLLOWS: -`.
   structure does not cover goes in **Further payment terms** as extra numbered items.
 - **Amounts are written out for you.** `25000` prints as `$25,000.00 (twenty-five thousand dollars)`
   wherever it appears, so the figures and the words can never drift apart.
+- **Subject to finance** is off by default. Switched on, it adds a last clause — the loan amount,
+  the date approval is due and the maximum interest rate, each set in bold — with a right to
+  terminate the deed in writing if approval is not obtained in time. It numbers itself after the
+  clauses already there.
 - **Output** is A4 Arial, 10, 11 or 12pt, with the pages numbered off letterhead. Execution blocks
-  read `EXECUTED by the Assignor` over `in the presence of:`, then the same signature boxes or ruled
-  lines the nomination tool uses — name in bold, capacity in italics beneath, an optional date line
-  — followed by a witness rule in the signature columns. An execution block is never split across a
-  page, and a clause heading is never stranded at the foot of one.
+  open with `EXECUTED by the Assignor`, then the same signature boxes or ruled lines the nomination
+  tool uses — name in bold, capacity in italics beneath, an optional date line — and close with
+  `in the presence of:` over the witness rule, which sits in the signature columns. An execution
+  block is never split across a page, and a clause heading is never stranded at the foot of one.
 
 ## Never Sold or Occupied Declaration — notes
 

@@ -257,6 +257,26 @@
     </fieldset>
 
     <fieldset>
+      <legend>Subject to finance</legend>
+      <label class="check"><input type="checkbox" id="finance" onchange="renderAll()">
+        <span>The deed is subject to the Assignee obtaining finance</span></label>
+      <div id="financeBox" class="hide">
+        <div class="row">
+          <div><label>Loan approval of not less than</label>
+            <input id="financeAmount" placeholder="0.00" oninput="render()">
+            <div class="echo" id="financeEcho"></div></div>
+          <div><label>Approval on or before</label>
+            <input type="date" id="financeDate" oninput="render()" onchange="render()">
+            <div class="echo" id="financeDateEcho"></div></div>
+        </div>
+        <label>Interest rate of not more than (%)</label>
+        <input id="financeRate" placeholder="8" oninput="render()">
+        <div class="hint">Prints as a further numbered clause at the end of the deed, with a
+          right to terminate in writing if approval is not obtained by the date.</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Document options</legend>
       <label class="check"><input type="checkbox" id="useLetterhead" onchange="render()">
         <span>Print on letterhead</span></label>
@@ -750,6 +770,7 @@ function toggleSections() {
   const named = val('purchaserIs') === 'named';
   document.getElementById('purchaserBox').classList.toggle('hide', !named);
   document.getElementById('priorDeedBox').classList.toggle('hide', !chk('priorDeed'));
+  document.getElementById('financeBox').classList.toggle('hide', !chk('finance'));
   document.getElementById('contractNameOther').classList.toggle('hide', val('contractName') !== '__other');
 
   const fee = payMode() === 'fee';
@@ -1152,7 +1173,7 @@ function partSentence(parts, i, what) {
  *  figure in clause 3, change with the matter.
  * ------------------------------------------------------------------ */
 function clauses(payLetter) {
-  return [
+  const list = [
     {n: '1', title: 'INTERPRETATION',
      body: ['In the interpretation of this Deed:'],
      subs: [
@@ -1256,6 +1277,24 @@ function clauses(payLetter) {
             'terminated, and any deposit paid under this Deed will be refunded to the Assignee; and ' +
             'the Assignor and Assignee will not have any recourse on the other party.']}
   ];
+
+  /* An optional last clause, off unless the matter is subject to finance.
+     The sum, the date and the rate are the terms the parties argue over, so
+     they are set in bold where they appear. */
+  if (chk('finance')) {
+    const n = String(list.length + 1);
+    const rate = val('financeRate').replace(/%\s*$/, '').trim();
+    list.push({n, title: 'SUBJECT TO FINANCE', subs: [
+      [n + '.1', 'This deed is subject to the Assignee obtaining formal loan approval from any ' +
+                 'recognised banking or financial institution for amount not less than ' +
+                 bold(amtWords(val('financeAmount'))) + ' on or before ' +
+                 bold(longDate(val('financeDate'))) + ' with interest rate of not more than ' +
+                 bold((rate || '____') + '%') + '.'],
+      [n + '.2', 'If finance approval is not obtained by the stated date, either party may ' +
+                 'terminate this Deed in writing.']
+    ]});
+  }
+  return list;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1273,7 +1312,7 @@ const IND = {
   subitem:   {indent: 14, hang: 8},
   head:      {indent: 0,  hang: 8},    // clause number, then its title
   body:      {indent: 8},
-  sub:       {indent: 8,  hang: 9}
+  sub:       {indent: 8,  hang: 10}    // wide enough for a two-digit "10.1"
 };
 
 function buildBlocks() {
@@ -1391,11 +1430,10 @@ function buildBlocks() {
 }
 
 function executionBlock(B, who, signers) {
-  // `hold` keeps the whole execution block on one page: the two lines that
-  // introduce it are no use with the signatures overleaf.
-  B.push({t:'p', text: bold('EXECUTED by the ' + who), cls:'plain', top: 8, bottom: 0,
+  // `hold` keeps the whole execution block on one page: the line that
+  // introduces it is no use with the signatures overleaf.
+  B.push({t:'p', text: bold('EXECUTED by the ' + who), cls:'plain', top: 8, bottom: 1,
           keep: true, hold: true});
-  B.push({t:'p', text: 'in the presence of:', cls:'plain', bottom: 1, keep: true});
   const list = signers.length ? signers : [{name: BLANK, cap: ''}];
   const n = perRow();
   for (let i = 0; i < list.length; i += n) B.push({t:'sigrow', cells: list.slice(i, i + n)});
@@ -1460,7 +1498,10 @@ function docHtml() {
           `<td class="fig"><span>${esc(r.amount)}</span></td>` +
           `<td class="lab2"><span>${esc(r.label)}</span></td></tr>`).join('') + '</tbody></table>';
       case 'item':
-        return `<p style="${style('margin-left:' + (b.indent + b.hang) + 'mm;text-indent:-' + b.hang + 'mm')}">` +
+        // The marker hangs in the margin, so the indent is the text column
+        // less the marker's width — set here rather than by `style`.
+        return `<p style="${b.top ? 'margin-top:' + b.top + 'mm;' : ''}` +
+               `margin-left:${b.indent + b.hang}mm;text-indent:-${b.hang}mm">` +
                `<span style="display:inline-block;min-width:${b.hang}mm">${esc(b.marker)}</span>` +
                runsHtml(b.text) + '</p>';
       case 'sigrow': {
@@ -1470,7 +1511,9 @@ function docHtml() {
                b.cells.map(c => sigCellHtml(c, cols, gap)).join('') + '</div>';
       }
       case 'witness':
-        return `<div style="page-break-inside:avoid"><p class="plain" style="margin-bottom:${Math.round(gap * 0.5)}px">Witness:</p>
+        return `<div style="page-break-inside:avoid">
+          <p class="plain" style="margin:6px 0 2px">in the presence of:</p>
+          <p class="plain" style="margin-bottom:${Math.round(gap * 0.5)}px">Witness:</p>
           <div class="sigrow" style="grid-template-columns:repeat(${b.grid},1fr);margin-top:0">
             ${Array.from({length: b.grid}, (_, i) =>
               '<div>' + (i < b.cols ? '<div class="sigline"></div>' : '') + '</div>').join('')}
@@ -1505,9 +1548,11 @@ function echo(id, text) { const el = document.getElementById(id); if (el) el.tex
 function render() {
   toggleSections();
   renderLetterheadBar();
-  echo('deedDateEcho',     val('deedDate')      ? 'Reads as: the ' + longDate(val('deedDate')) : '');
-  echo('contractDateEcho', val('contractDate')  ? 'Reads as: the ' + longDate(val('contractDate')) : '');
-  echo('priorDeedEcho',    val('priorDeedDate') ? 'Reads as: the ' + longDate(val('priorDeedDate')) : '');
+  echo('deedDateEcho',     val('deedDate')      ? 'Reads as: the ' + plain(deedDate(val('deedDate'))) : '');
+  echo('contractDateEcho', val('contractDate')  ? 'Reads as: the ' + plain(longDate(val('contractDate'))) : '');
+  echo('priorDeedEcho',    val('priorDeedDate') ? 'Reads as: the ' + plain(longDate(val('priorDeedDate'))) : '');
+  echo('financeDateEcho',  val('financeDate')   ? 'Reads as: ' + plain(longDate(val('financeDate'))) : '');
+  echo('financeEcho',      val('financeAmount') ? amt(val('financeAmount')) + ' — ' + inWords(val('financeAmount')) : '');
   echo('priceEcho',        val('price')   ? amt(val('price'))   + ' — ' + inWords(val('price'))   : '');
   echo('depositEcho',      val('deposit') ? amt(val('deposit')) + ' — ' + inWords(val('deposit')) : '');
   echo('feeEcho',          val('fee')     ? amt(val('fee'))     + ' — ' + inWords(val('fee'))     : '');
@@ -1659,9 +1704,12 @@ function buildDocxDoc() {
     ];
   };
 
-  /** Ruled lines for the witness, in the same columns as the signatures. */
+  /** Ruled lines for the witness, in the same columns as the signatures.
+      "in the presence of:" belongs here, against the witness it refers to. */
   const witnessTable = (cols, grid) => [
-    new Paragraph({spacing:{before:200, after:0}, children:[run('Witness:')]}),
+    new Paragraph({spacing:{before:200, after:0}, keepNext: true,
+                   children:[run('in the presence of:')]}),
+    new Paragraph({spacing:{before:0, after:0}, keepNext: true, children:[run('Witness:')]}),
     new Paragraph({spacing:{before:0, after:0}, children:[new TextRun({text:'', size:8})]}),
     new Table({
       width:{size: TEXT_WIDTH, type:WidthType.DXA},
@@ -2047,7 +2095,10 @@ function buildPdfDoc() {
         const gap = sigSpace().mm * 0.6;
         const colW = W / b.grid;
         const boxW = colW - (b.grid > 1 ? 8 : 0);
-        need(gap + LINE + 6);
+        need(gap + LINE * 2 + 8);
+        y += 2;
+        d.text('in the presence of:', M, y);
+        y += LINE;
         d.text('Witness:', M, y);
         y += gap;
         d.setLineWidth(0.3);
@@ -2057,7 +2108,10 @@ function buildPdfDoc() {
       }
       default: {
         if (b.top) y += b.top;
-        if (b.hold) need(LINE * 7 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0));
+        // Room for the whole execution block — heading, box, name, capacity,
+        // date line and the witness rule — or start it on a fresh page.
+        if (b.hold) need(LINE * 5 + 8 + sigSpace().mm + (sigDated() ? LINE + 3 : 0) +
+                         (witnessed() ? sigSpace().mm * 0.6 + LINE * 2 + 10 : 0));
         const x = M + (b.indent || 0);
         writeLines(b.text, x, W - (b.indent || 0), b.cls !== 'plain');
         y += b.bottom !== undefined ? b.bottom : 2;
@@ -2151,8 +2205,9 @@ function setStatus(msg, isError = false) {
  * ------------------------------------------------------------------ */
 const SIMPLE = ['deedDate','contractName','contractNameOther','contractDate','priorDeedDate','purchaserIs',
                 'payMode','price','deposit','fee','trustAccount','depMode','feeMode',
+                'financeAmount','financeDate','financeRate',
                 'docTitle','fontSize','sigStyle','sigSpace'];
-const BOXES  = ['priorDeed','depNonRefundable','vendorCredit','feeNonRefundable',
+const BOXES  = ['priorDeed','depNonRefundable','vendorCredit','feeNonRefundable','finance',
                 'useLetterhead','sigDate','witnessLines','pageNumbers'];
 
 const snapshot = () => {
@@ -2170,7 +2225,8 @@ const FIELD_DEFAULTS = {
   trustAccount:'Acquire Conveyancing Trust Account'
 };
 const BOX_DEFAULTS = {priorDeed:false, depNonRefundable:true, vendorCredit:true, feeNonRefundable:true,
-                      useLetterhead:false, sigDate:true, witnessLines:true, pageNumbers:true};
+                      finance:false, useLetterhead:false, sigDate:true, witnessLines:true,
+                      pageNumbers:true};
 
 function setFields(f) {
   SIMPLE.forEach(id => {
