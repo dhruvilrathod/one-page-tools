@@ -42,6 +42,10 @@
   .card .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
   .sub{background:#fff;border-left-color:#b9c4d1;margin-top:10px}
   .addbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .rowbtns{display:flex;gap:4px;align-items:center;flex:none}
+  .rowbtns button[disabled]{opacity:.35;cursor:default}
+  .tag{font-size:10.5px;font-weight:600;letter-spacing:.2px;color:#8a5a12;background:#fdf3e0;
+       border:1px solid #efd9ad;border-radius:999px;padding:1px 7px;margin-left:6px;text-transform:none}
   .hide{display:none!important}
   .hint{font-size:11px;color:var(--muted);margin-top:4px}
   .echo{font-size:11px;color:var(--accent);margin-top:3px;min-height:1px}
@@ -249,11 +253,12 @@
     </fieldset>
 
     <fieldset>
-      <legend>Further payment terms</legend>
-      <div id="extras"></div>
-      <div class="addbar"><button class="mini" onclick="addExtra()">+ Add a term</button></div>
-      <div class="hint">Anything else that belongs in the payment schedule. Each one prints as a
-        further numbered item at the end of it.</div>
+      <legend>Payment schedule</legend>
+      <div class="hint" style="margin:0 0 10px">The numbered conditions, in the order they print.
+        The standard ones write themselves from the fields above — type in one to word it yourself,
+        and <em>Reset</em> puts the generated sentence back.</div>
+      <div id="schedule"></div>
+      <div class="addbar"><button class="mini" onclick="addCondition()">+ Add condition</button></div>
     </fieldset>
 
     <fieldset>
@@ -341,9 +346,9 @@
  * ------------------------------------------------------------------ */
 const S = {
   assignors: [], assignees: [], vendors: [], purchasers: [], properties: [],
-  deposit: {parts: []},
-  fee:     {parts: []},
-  extras:  []
+  deposit:  {parts: []},
+  fee:      {parts: []},
+  schedule: []
 };
 
 const KINDS = {
@@ -400,9 +405,31 @@ function setPart(which, id, f, v)   {
   p[f] = f === 'release' ? !!v : v;
   f === 'when' ? renderAll() : render();
 }
-function addExtra()             { S.extras.push({id:uid(), text:''}); renderAll(); }
-function removeExtra(id)        { S.extras = S.extras.filter(x => x.id !== id); renderAll(); }
-function setExtra(id, v)        { const e = S.extras.find(x => x.id === id); if (e) { e.text = v; render(); } }
+/* ---- the payment schedule ---- */
+const defaultSchedule = () => KINDS_SCHEDULE.map(kind => ({id:uid(), kind, text:''}));
+
+function addCondition()      { S.schedule.push({id:uid(), kind:'custom', text:''}); renderAll(); }
+function removeSchedule(id)  { S.schedule = S.schedule.filter(r => r.id !== id); renderAll(); }
+function resetSchedule(id)   { const r = S.schedule.find(x => x.id === id); if (r) { r.text = ''; renderAll(); } }
+function setSchedule(id, v)  {
+  const r = S.schedule.find(x => x.id === id);
+  // Only the preview is redrawn: re-rendering the form would take the
+  // cursor out of the box being typed in.
+  if (r) { r.text = v; render(); }
+}
+
+/** Move a condition past the one above or below it — past the next one the
+    user can actually see, not a standard condition this deed switched off. */
+function moveSchedule(id, dir) {
+  const rows = S.schedule;
+  const i = rows.findIndex(r => r.id === id);
+  if (i < 0) return;
+  let j = i + dir;
+  while (j >= 0 && j < rows.length && !rowActive(rows[j])) j += dir;
+  if (j < 0 || j >= rows.length) return;
+  [rows[i], rows[j]] = [rows[j], rows[i]];
+  renderAll();
+}
 
 /* ------------------------------------------------------------------ *
  *  Money and dates
@@ -758,12 +785,55 @@ function renderForm() {
   document.getElementById('depPartRows').innerHTML = partRows('deposit');
   document.getElementById('feePartRows').innerHTML = partRows('fee');
 
-  document.getElementById('extras').innerHTML = S.extras.map((e, i) => `
-    <div class="card">
-      <div class="card-head"><span>Term ${i + 1}</span>
-        <button class="mini del" onclick="removeExtra('${e.id}')">Remove</button></div>
-      <textarea placeholder="A further term of payment" oninput="setExtra('${e.id}',this.value)">${esc(e.text)}</textarea>
-    </div>`).join('');
+  renderScheduleRows();
+}
+
+/** One card per condition, numbered as it will print, with the arrows that
+    move it and the box that holds its wording. */
+function renderScheduleRows() {
+  const rows = S.schedule.filter(rowActive);
+  let n = 0;
+  document.getElementById('schedule').innerHTML = rows.map((r, i) => {
+    const text = rowText(r);
+    const num  = text ? ++n + '.' : '—';      // an empty condition does not print
+    const subs = subItemsFor(r.kind).length;
+    const own  = r.kind === 'custom';
+    return `<div class="card">
+      <div class="card-head">
+        <span><span id="schNum-${r.id}">${num}</span> ${KIND_LABEL[r.kind]}
+          <span class="tag ${rowEdited(r) ? '' : 'hide'}" id="schTag-${r.id}">your wording</span></span>
+        <span class="rowbtns">
+          <button class="mini" ${i === 0 ? 'disabled' : ''}
+                  onclick="moveSchedule('${r.id}',-1)" title="Move up">↑</button>
+          <button class="mini" ${i === rows.length - 1 ? 'disabled' : ''}
+                  onclick="moveSchedule('${r.id}',1)" title="Move down">↓</button>
+          ${own ? `<button class="mini del" onclick="removeSchedule('${r.id}')">Remove</button>`
+                : `<button class="mini" onclick="resetSchedule('${r.id}')">Reset</button>`}
+        </span>
+      </div>
+      <textarea id="sch-${r.id}" placeholder="${own ? 'A further condition of payment' : ''}"
+        oninput="setSchedule('${r.id}',this.value)">${esc(text)}</textarea>
+      ${subs ? `<div class="hint">Then ${subs} instalment${subs > 1 ? 's' : ''} as a., b., … from the
+        fields above.</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/** Conditions the user has not worded themselves follow the fields above,
+    so their boxes are refreshed in place — re-rendering the form under a
+    cursor would throw the user out of the field they are in. */
+function refreshScheduleText() {
+  let n = 0;
+  S.schedule.filter(rowActive).forEach(r => {
+    const box = document.getElementById('sch-' + r.id);
+    if (!box) return;
+    const num = document.getElementById('schNum-' + r.id);
+    if (num) num.textContent = rowText(r) ? ++n + '.' : '—';
+    const tag = document.getElementById('schTag-' + r.id);
+    if (tag) tag.classList.toggle('hide', !rowEdited(r));
+    if (r.kind === 'custom' || rowEdited(r) || document.activeElement === box) return;
+    box.value = generatedText(r.kind);
+  });
 }
 
 function toggleSections() {
@@ -1103,22 +1173,45 @@ const releasePhrase = (what, sum) =>
   ' and assignee agrees this ' + what + ' of ' + sum +
   " to be released to assignor immediately by assignor's conveyancer.";
 
-/** The numbered items of the payment schedule, sub-items and all. */
-function scheduleItems() {
-  const items = [];
-  const dep = amt(val('deposit'));
-  const fee = amt(val('fee'));
-  const feeMode = payMode() === 'fee';
+/* The schedule is an ordered list of conditions. The standard ones write
+   themselves from the fields above and appear only while the matter has
+   them; any of them can be worded by hand instead, and conditions of the
+   user's own can be added among them. The row keeps the order and the
+   wording, so switching a standard condition off and on again does not
+   lose either. */
+const KINDS_SCHEDULE = ['deposit', 'depNonRef', 'credit', 'fee', 'feeNonRef'];
+const KIND_LABEL = {
+  deposit:   'Deposit',
+  depNonRef: 'Deposit non-refundable',
+  credit:    'Vendor credit',
+  fee:       'Assignment fee',
+  feeNonRef: 'Fee non-refundable',
+  custom:    'Condition'
+};
 
-  /* --- the deposit --- */
-  if (val('depMode') === 'parts') {
-    items.push({text: 'The total Deposit of ' + dep +
-                      ' shall become payable by the Assignee to the Assignor as follows:',
-                subs: S.deposit.parts.map((p, i) => partSentence(S.deposit.parts, i, 'amount'))});
-    if (chk('depNonRefundable')) {
-      items.push({text: 'The Assignee acknowledges and agrees that the Deposit of ' + dep + ' is non-refundable.'});
+/** Whether a standard condition belongs in this deed at all. */
+function rowActive(r) {
+  switch (r.kind) {
+    case 'custom':    return true;
+    case 'deposit':   return true;
+    // in one payment the acknowledgement closes the deposit sentence; paid
+    // in instalments it has nowhere to sit but a condition of its own
+    case 'depNonRef': return val('depMode') === 'parts' && chk('depNonRefundable');
+    case 'credit':    return chk('vendorCredit');
+    case 'fee':       return payMode() === 'fee';
+    case 'feeNonRef': return payMode() === 'fee' && chk('feeNonRefundable');
+    default:          return false;
+  }
+}
+
+/** The sentence a standard condition writes for itself. */
+function generatedText(kind) {
+  const dep = amt(val('deposit')), fee = amt(val('fee'));
+  if (kind === 'deposit') {
+    if (val('depMode') === 'parts') {
+      return 'The total Deposit of ' + dep +
+             ' shall become payable by the Assignee to the Assignor as follows:';
     }
-  } else {
     const t = S.deposit;
     let s = 'Deposit amount of ' + dep + ' shall become payable ' + whenPhrase(t.when, t.date) +
             ' to ' + payeePhrase(t.payee);
@@ -1126,34 +1219,52 @@ function scheduleItems() {
     if (chk('depNonRefundable')) {
       s += ' Assignee acknowledges that Deposit amount of ' + dep + ' is non-refundable.';
     }
-    items.push({text: s});
+    return s;
   }
-
-  if (chk('vendorCredit')) {
-    items.push({text: 'Vendor will give credit for total Deposit amount of ' + dep + ' at settlement.'});
+  if (kind === 'depNonRef') {
+    return 'The Assignee acknowledges and agrees that the Deposit of ' + dep + ' is non-refundable.';
   }
-
-  /* --- the assignment fee --- */
-  if (feeMode) {
+  if (kind === 'credit') {
+    return 'Vendor will give credit for total Deposit amount of ' + dep + ' at settlement.';
+  }
+  if (kind === 'fee') {
     if (val('feeMode') === 'parts') {
-      items.push({text: 'The total Assignment Fee of ' + fee +
-                        ' shall become payable by the Assignee to the Assignor as follows:',
-                  subs: S.fee.parts.map((p, i) => partSentence(S.fee.parts, i, 'amount'))});
-    } else {
-      const t = S.fee;
-      let s = 'Assignment Fee of ' + fee + ' shall become payable ' + whenPhrase(t.when, t.date) +
-              ' to ' + payeePhrase(t.payee);
-      s += (t.payee === 'trust' && t.release) ? releasePhrase('amount', fee) : '.';
-      items.push({text: s});
+      return 'The total Assignment Fee of ' + fee +
+             ' shall become payable by the Assignee to the Assignor as follows:';
     }
-    if (chk('feeNonRefundable')) {
-      items.push({text: 'The Assignee acknowledges and agrees that the Assignment Fee of ' + fee +
-                        ' is non-refundable.'});
-    }
+    const t = S.fee;
+    let s = 'Assignment Fee of ' + fee + ' shall become payable ' + whenPhrase(t.when, t.date) +
+            ' to ' + payeePhrase(t.payee);
+    s += (t.payee === 'trust' && t.release) ? releasePhrase('amount', fee) : '.';
+    return s;
   }
+  if (kind === 'feeNonRef') {
+    return 'The Assignee acknowledges and agrees that the Assignment Fee of ' + fee +
+           ' is non-refundable.';
+  }
+  return '';
+}
 
-  S.extras.forEach(e => { if (e.text.trim()) items.push({text: e.text.trim()}); });
-  return items;
+/** The a., b. instalments that hang under the deposit or the fee. */
+function subItemsFor(kind) {
+  if (kind === 'deposit' && val('depMode') === 'parts') {
+    return S.deposit.parts.map((p, i) => partSentence(S.deposit.parts, i, 'amount'));
+  }
+  if (kind === 'fee' && val('feeMode') === 'parts') {
+    return S.fee.parts.map((p, i) => partSentence(S.fee.parts, i, 'amount'));
+  }
+  return [];
+}
+
+/** What a row reads as: the user's wording where there is one. */
+const rowText = r => (r.text || '').trim() || (r.kind === 'custom' ? '' : generatedText(r.kind));
+const rowEdited = r => r.kind !== 'custom' && !!(r.text || '').trim();
+
+/** The numbered items of the payment schedule, sub-items and all. */
+function scheduleItems() {
+  return S.schedule.filter(rowActive)
+    .map(r => ({text: rowText(r), subs: subItemsFor(r.kind)}))
+    .filter(it => it.text);
 }
 
 function partSentence(parts, i, what) {
@@ -1381,7 +1492,8 @@ function buildBlocks() {
     p('Deposit for the Land shall be payable in the following manner:', {cls:'plain', ...IND.under});
   } else {
     item(payLetter + '.',
-      'The Assignee desires to purchase the Land from the Assignor and shall pay the following:',
+      'The Assignee desires to take assignment of the Contract from the Assignor and shall pay ' +
+      'the following:',
       IND.recital);
     // The total is only worth stating once both halves of it are known.
     // Laid out as a sum: operator, figure and label in their own columns,
@@ -1558,6 +1670,7 @@ function render() {
   echo('feeEcho',          val('fee')     ? amt(val('fee'))     + ' — ' + inWords(val('fee'))     : '');
   echo('depPartsEcho',     partsEcho('deposit', num(val('deposit'))));
   echo('feePartsEcho',     partsEcho('fee', num(val('fee'))));
+  refreshScheduleText();
   renderPreview();
 }
 function renderAll() { renderForm(); render(); }
@@ -2278,12 +2391,29 @@ const EMPTY_TERMS = () => ({when:'signing', date:'', payee:'trust', release:true
 function applyDraft(d) {
   setFields(d.fields || {});
   const l = d.lists || {};
-  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(k => S[k] = l[k] || []);
+  ['assignors','assignees','vendors','purchasers','properties'].forEach(k => S[k] = l[k] || []);
   S.deposit = Object.assign(EMPTY_TERMS(), l.deposit || {when:'signing'});
   S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false}, l.fee || {});
   S.deposit.parts = S.deposit.parts || [];
   S.fee.parts     = S.fee.parts || [];
+  S.schedule = normaliseSchedule(l.schedule, l.extras);
   renderAll();
+}
+
+/* A draft written before the schedule became a list carries its own terms
+   as `extras`; they belong after the standard conditions, which is where
+   they printed. Any standard condition missing from a draft is restored,
+   so a schedule is never short of one. */
+function normaliseSchedule(saved, extras) {
+  const rows = (saved || []).filter(r => r && (r.kind === 'custom' || KINDS_SCHEDULE.includes(r.kind)))
+    .map(r => ({id: r.id || uid(), kind: r.kind, text: r.text || ''}));
+  KINDS_SCHEDULE.forEach((kind, i) => {
+    if (!rows.some(r => r.kind === kind)) rows.splice(Math.min(i, rows.length), 0, {id:uid(), kind, text:''});
+  });
+  (extras || []).forEach(e => {
+    if ((e.text || '').trim()) rows.push({id: e.id || uid(), kind:'custom', text: e.text});
+  });
+  return rows;
 }
 
 /* Save to a folder the user picks. Uses the File System Access API where
@@ -2395,7 +2525,6 @@ const SAMPLES = {
     purchasers: [],
     properties: [property({address:'88 Larkspur Road, Angle Vale SA 5117', volume:'6402', folio:'118',
                            legal:'Allotment 27 in Deposited Plan 141902 in the area named Angle Vale, Hundred of Munno Para'})],
-    extras: []
   },
 
   settlement: {
@@ -2414,7 +2543,6 @@ const SAMPLES = {
     purchasers: [party('individual', {name:'Ravi Prakash Menon', address:ADDR.menon})],
     properties: [property({address:ADDR.ashcombe, volume:'5388', folio:'204',
                            legal:'Allotment 1502 in Deposited Plan 9411 in the area named Ingle Farm, Hundred of Yatala'})],
-    extras: []
   },
 
   instalments: {
@@ -2440,7 +2568,6 @@ const SAMPLES = {
                                       address:'22 Halstead Avenue, Clearview SA 5085'})],
     properties: [property({address:'204 Fenwick Road, Hillier SA 5116', volume:'5311', folio:'46',
                            legal:'Allotment 3 in Filed Plan 10788 in the area named Hillier, Hundred of Munno Para'})],
-    extras: []
   }
 };
 
@@ -2449,10 +2576,11 @@ function loadSample(key) {
   if (!s) return;
   const keep = {fontSize: val('fontSize'), sigStyle: val('sigStyle'), sigSpace: val('sigSpace')};
   setFields({...FIELD_DEFAULTS, ...BOX_DEFAULTS, ...s.fields, ...keep});
-  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(
+  ['assignors','assignees','vendors','purchasers','properties'].forEach(
     k => S[k] = JSON.parse(JSON.stringify(s[k] || [])));
-  S.deposit = JSON.parse(JSON.stringify(s.deposit));
-  S.fee     = JSON.parse(JSON.stringify(s.fee));
+  S.deposit  = JSON.parse(JSON.stringify(s.deposit));
+  S.fee      = JSON.parse(JSON.stringify(s.fee));
+  S.schedule = defaultSchedule();
   renderAll();
   setStatus('Loaded sample: ' + s.label);
 }
@@ -2460,9 +2588,10 @@ function loadSample(key) {
 function resetAll() {
   const keep = {fontSize: val('fontSize'), sigStyle: val('sigStyle'), sigSpace: val('sigSpace')};
   setFields({...FIELD_DEFAULTS, ...BOX_DEFAULTS, ...keep});
-  ['assignors','assignees','vendors','purchasers','properties','extras'].forEach(k => S[k] = []);
-  S.deposit = EMPTY_TERMS();
-  S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+  ['assignors','assignees','vendors','purchasers','properties'].forEach(k => S[k] = []);
+  S.deposit  = EMPTY_TERMS();
+  S.fee      = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+  S.schedule = defaultSchedule();
   seed();
 }
 
@@ -2474,8 +2603,9 @@ function seed() {
   addProperty();
 }
 
-S.deposit = EMPTY_TERMS();
-S.fee     = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+S.deposit  = EMPTY_TERMS();
+S.fee      = Object.assign(EMPTY_TERMS(), {when:'settlement', release:false});
+S.schedule = defaultSchedule();
 loadStoredLetterhead();
 seed();
 renderAll();

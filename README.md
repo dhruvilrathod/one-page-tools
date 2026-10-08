@@ -91,8 +91,14 @@ after the colon in `AS FOLLOWS: -`.
   account (named in a field) or to the assignor directly, with the release-on-receipt wording as an
   option. Either can instead be paid in instalments, which print as `a.`, `b.` under their item and
   name themselves *An initial amount* / *A further amount* / *The balance amount* unless you word
-  one yourself. Instalments that do not add up to the total say so as you type. Anything the
-  structure does not cover goes in **Further payment terms** as extra numbered items.
+  one yourself. Instalments that do not add up to the total say so as you type.
+- **The schedule itself is a list you can arrange.** Each standard condition — the deposit, the
+  vendor credit, the fee, the non-refundable acknowledgements — is a card under **Payment schedule**,
+  numbered as it will print. Arrows move a condition up or down; *+ Add condition* adds one of your
+  own, anywhere in the order. A standard condition writes itself from the fields above and keeps
+  following them as the amounts change; type in its box to word it yourself, which marks it *your
+  wording*, and *Reset* puts the generated sentence back. Switching a standard condition off above
+  takes it out of the list and switching it on again returns it to its place, wording and all.
 - **Amounts are written out for you.** `25000` prints as `$25,000.00 (twenty-five thousand dollars)`
   wherever it appears, so the figures and the words can never drift apart.
 - **Subject to finance** is off by default. Switched on, it adds a last clause — the loan amount,
